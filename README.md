@@ -12,6 +12,13 @@ This project was bootstrapped with [Create React App](https://github.com/faceboo
 
 In the project directory, you can run:
 
+### `yarn electron-dev`
+
+Runs the app in the development mode, in software view.\
+
+The page will reload when you make changes.\
+You may also see any lint errors in the console.
+
 ### `yarn start`
 
 Runs the app in the development mode.\
