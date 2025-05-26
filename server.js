@@ -3,16 +3,15 @@ const fs = require("fs");
 const path = require("path");
 
 const app = express();
-const port = 5000; // Choisissez un port approprié
+const port = 5000;
 
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   next();
 });
 
-// Endpoint pour récupérer le contenu de transcription.txt
 app.get("/api/transcription", (req, res) => {
-  const filePath = "transcription.txt";
+  const filePath = "../backend/transcription.txt";
   fs.readFile(filePath, "utf8", (err, data) => {
     if (err) {
       console.error("Error reading file:", err);
