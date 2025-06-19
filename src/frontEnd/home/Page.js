@@ -12,10 +12,22 @@ export default function MainPage() {
 
   const handlePlay = () => {
     setIsPlaying(true);
-    setTimeout(() => setIsPlaying(false), 1000); // simulate animation
-    alert(`Translating audio into ${language} subtitles and sign language...`);
+  
+    setTimeout(() => {
+      setIsPlaying(false);
+  
+      const signWindow = window.open('/sign', '_blank', 'width=800,height=600');
+      const subtitleWindow = window.open('/subtitle', '_blank', 'width=800,height=400');
+  
+      if (!signWindow || !subtitleWindow) {
+        alert('Popup blocked! Please allow popups for this site.');
+      } else {
+        signWindow.focus();
+        subtitleWindow.focus();
+      }
+    }, 1000);
   };
-
+  
   return (
     <div className="flex flex-col items-center justify-center h-screen px-4 transition duration-300">
       <div className="absolute top-4 right-4">

@@ -2,6 +2,8 @@ import { useState, createContext, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Home from './frontEnd/home/Page';
 import SettingsPage from './frontEnd/settings/Page';
+import SignPage from './frontEnd/sign/Page';
+import SubtitlePage from './frontEnd/subtitle/Page';
 
 const ThemeContext = createContext();
 
@@ -18,6 +20,8 @@ function App() {
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/sign" element={<SignPage />} />
+              <Route path="/subtitle" element={<SubtitlePage />} />
             </Routes>
           </Router>
         </div>
