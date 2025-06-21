@@ -1,24 +1,14 @@
 // src/frontEnd/sign/Page.js
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { useMediaQuery} from "@mui/material"; //Button, Typography, Box
-import { useTheme } from "@mui/styles";
+import { useMediaQuery} from "@mui/material";
+import { useNavigate } from 'react-router-dom';
+import { useTheme } from '../../App';
 
 function SignPage() {
   const theme = useTheme();
-  const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
-  const [darkMode, setDarkMode] = useState(() => {
-    const savedDarkMode = localStorage.getItem("darkMode");
-    if (savedDarkMode) {
-      try {
-        return JSON.parse(savedDarkMode);
-      } catch (e) {
-        console.error("Error parsing darkMode from localStorage", e);
-        return false;
-      }
-    }
-    return false;
-  });
+  const isSmallScreen = window.innerWidth < 640; // Tailwind's 'sm' is 640px
+  const { darkMode, setDarkMode } = useTheme();
 
   const [signs, setSigns] = useState([]);
 
