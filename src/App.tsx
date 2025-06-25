@@ -1,13 +1,12 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { HashRouter, Route, Routes } from "react-router-dom";
 
 // Electron API types are now in electron-env.d.ts
+import { SettingsProvider } from "./contexts/Settings";
 import HomePage from "./pages/Home";
-import LanguagePage from "./pages/Language";
 import SettingsPage from "./pages/Settings";
 import SignPage from "./pages/Sign";
 import SubtitlePage from "./pages/Subtitle";
-import { SettingsProvider } from "./contexts/Settings";
 
 const ThemeContext = createContext({
   darkMode: false,
@@ -19,8 +18,8 @@ export const useTheme = () => useContext(ThemeContext);
 function App() {
   const [darkMode, setDarkMode] = useState(() => {
     // Initialize from localStorage if available
-    const savedTheme = localStorage.getItem('darkMode');
-    return savedTheme ? savedTheme === 'true' : true;
+    const savedTheme = localStorage.getItem("darkMode");
+    return savedTheme ? savedTheme === "true" : true;
   });
 
   // Handle theme changes from other windows
@@ -29,16 +28,16 @@ function App() {
 
     const handleThemeUpdate = (darkMode: boolean) => {
       setDarkMode(darkMode);
-      localStorage.setItem('darkMode', String(darkMode));
+      localStorage.setItem("darkMode", String(darkMode));
     };
 
     // Listen for theme updates from other windows
     window.electronAPI.onUpdateTheme(handleThemeUpdate);
 
     // Load initial theme
-    const savedTheme = localStorage.getItem('darkMode');
+    const savedTheme = localStorage.getItem("darkMode");
     if (savedTheme !== null) {
-      const isDark = savedTheme === 'true';
+      const isDark = savedTheme === "true";
       setDarkMode(isDark);
     }
 
@@ -50,8 +49,8 @@ function App() {
   // Update theme in all windows when it changes
   const updateTheme = (newTheme: boolean) => {
     setDarkMode(newTheme);
-    localStorage.setItem('darkMode', String(newTheme));
-    
+    localStorage.setItem("darkMode", String(newTheme));
+
     if (window.electronAPI) {
       window.electronAPI.updateTheme(newTheme);
     }
@@ -67,7 +66,6 @@ function App() {
                 <Route path="/" element={<HomePage />} />
                 <Route path="/home" element={<HomePage />} />
                 <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/language" element={<LanguagePage />} />
                 <Route path="/sign" element={<SignPage />} />
                 <Route path="/subtitle" element={<SubtitlePage />} />
               </Routes>
