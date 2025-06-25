@@ -2,11 +2,11 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { HashRouter, Route, Routes } from "react-router-dom";
 
 // Electron API types are now in electron-env.d.ts
-import { SettingsProvider } from "./contexts/Settings";
-import HomePage from "./pages/Home";
-import SettingsPage from "./pages/Settings";
-import SignPage from "./pages/Sign";
-import SubtitlePage from "./pages/Subtitle";
+import { SettingsProvider } from "./contexts/SettingsContext";
+import HomePage from "./pages/HomePage";
+import SettingsPage from "./pages/SettingsPage";
+import SignPage from "./pages/SignPage";
+import SubtitlePage from "./pages/SubtitlePage";
 
 const ThemeContext = createContext({
   darkMode: false,

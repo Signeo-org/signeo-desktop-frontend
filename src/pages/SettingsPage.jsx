@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../App";
-import { useSettings } from "../contexts/Settings";
+import { useSettings } from "../contexts/SettingsContext";
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -13,7 +13,7 @@ export default function SettingsPage() {
     setAudioInput,
     setFontSize,
     setSignLanguage,
-    setSubtitles
+    setSubtitles,
   } = useSettings();
 
   return (
@@ -24,7 +24,7 @@ export default function SettingsPage() {
             onClick={() => setDarkMode(!darkMode)}
             className="text-sm text-gray-400 hover:text-blue-500"
           >
-            {darkMode ? '🌞 Light Mode' : '🌙 Dark Mode'}
+            {darkMode ? "🌞 Light Mode" : "🌙 Dark Mode"}
           </button>
         </div>
         <h2 className="text-2xl font-semibold text-center pt-2">Settings</h2>

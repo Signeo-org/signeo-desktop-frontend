@@ -2,44 +2,46 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../App";
-import { useSettings } from "../contexts/Settings";
-
-const languages = ["English", "Spanish", "French", "German"];
+import { useSettings } from "../contexts/SettingsContext";
 
 export default function MainPage() {
-  const [language, setLanguage] = useState("English");
   const [isPlaying, setIsPlaying] = useState(false);
   const navigate = useNavigate();
   const { darkMode, setDarkMode } = useTheme();
-  const { subtitles, signLanguage } = useSettings();
+  const { subtitles, signLanguage, language, setLanguage, availableLanguages } =
+    useSettings();
 
   const handlePlay = async () => {
     if (!isPlaying) {
       // Check if any windows should be opened
       if (!subtitles && !signLanguage) {
-        alert("Both subtitles and sign language are disabled in settings. Please enable at least one in Settings.");
+        alert(
+          "Both subtitles and sign language are disabled in settings. Please enable at least one in Settings."
+        );
         return; // Exit early without changing play state
       }
-      
+
       // Start translation
       setIsPlaying(true);
-      
+
       // runtime check so we don't crash in the browser
       if (window.electronAPI) {
         try {
           // Close any existing windows first
           await window.electronAPI.closeAuxWindows();
-          
+
           // Open the enabled windows
           if (subtitles) {
-            await window.electronAPI.openWindow('subtitle');
+            await window.electronAPI.openWindow("subtitle");
           }
           if (signLanguage) {
-            await window.electronAPI.openWindow('sign');
+            await window.electronAPI.openWindow("sign");
           }
         } catch (error) {
           console.error("Error managing windows:", error);
-          alert("Failed to manage auxiliary windows. Please check the console for details.");
+          alert(
+            "Failed to manage auxiliary windows. Please check the console for details."
+          );
           setIsPlaying(false);
         }
       } else {
@@ -73,7 +75,7 @@ export default function MainPage() {
             onClick={() => setDarkMode(!darkMode)}
             className="text-sm text-gray-400 hover:text-blue-500"
           >
-            {darkMode ? '🌞 Light Mode' : '🌙 Dark Mode'}
+            {darkMode ? "🌞 Light Mode" : "🌙 Dark Mode"}
           </button>
         </div>
         <h1 className="text-4xl font-bold text-center">Audio Interpreter</h1>
@@ -88,13 +90,13 @@ export default function MainPage() {
           </label>
           <select
             id="language"
-            value={language}
+            value={language || "en-US"}
             onChange={(e) => setLanguage(e.target.value)}
             className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-400 dark:border-gray-700 rounded-lg"
           >
-            {languages.map((lang) => (
-              <option key={lang} value={lang}>
-                {lang}
+            {availableLanguages?.map((lang) => (
+              <option key={lang.code} value={lang.code}>
+                {lang.name}
               </option>
             ))}
           </select>
