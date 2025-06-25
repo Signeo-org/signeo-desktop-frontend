@@ -1,57 +1,28 @@
-const globals = require("globals");
-const pluginJs = require("@eslint/js");
-const pluginReactConfig = require("eslint-plugin-react/configs/recommended");
-const { fixupConfigRules } = require("@eslint/compat");
+import js from '@eslint/js'
+import globals from 'globals'
+import reactHooks from 'eslint-plugin-react-hooks'
+import reactRefresh from 'eslint-plugin-react-refresh'
+import tseslint from 'typescript-eslint'
 
-module.exports = [
+export default tseslint.config(
+  { ignores: ['dist'] },
   {
-    files: ["**/*.{js,mjs,cjs,jsx}"],
+    extends: [js.configs.recommended, ...tseslint.configs.recommended],
+    files: ['**/*.{ts,tsx}'],
     languageOptions: {
-      globals: {
-        ...globals.browser,
-        require: "readonly",
-        process: "readonly",
-        __dirname: "readonly",
-        module: "readonly",
-      },
-      parserOptions: {
-        ecmaFeatures: { jsx: true },
-        ecmaVersion: "latest",
-        sourceType: "module",
-      },
+      ecmaVersion: latest,
+      globals: globals.browser,
     },
-    settings: {
-      react: {
-        version: "detect",
-      },
+    plugins: {
+      'react-hooks': reactHooks,
+      'react-refresh': reactRefresh,
     },
     rules: {
-      semi: ["error", "always"],
-      quotes: ["error", "double"],
-      "no-unused-vars": ["error"],
-      "react/react-in-jsx-scope": "error",
-      "react/prop-types": "error",
-      "no-undef": "error",
-      "no-dupe-keys": "error",
-      "no-unreachable": "error",
-      "no-constant-condition": "error",
-      "no-empty": "error",
-      "no-extra-boolean-cast": "error",
-      "no-extra-semi": "error",
-      "no-extra-parens": "error",
-      "no-irregular-whitespace": "error",
-      "no-unexpected-multiline": "error",
+      ...reactHooks.configs.recommended.rules,
+      'react-refresh/only-export-components': [
+        'warn',
+        { allowConstantExport: true },
+      ],
     },
   },
-  {
-    files: ["**/*.test.{js,jsx}"],
-    languageOptions: {
-      globals: {
-        test: "readonly",
-        expect: "readonly",
-      },
-    },
-  },
-  pluginJs.configs.recommended,
-  ...fixupConfigRules(pluginReactConfig),
-];
+)

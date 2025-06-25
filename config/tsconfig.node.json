@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    /* Build info */
+    "composite": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+
+    /* Language + libs */
+    "target": "esnext",
+    "lib": ["esnext"],
+
+    /* Modules (Node 20-24 style) */
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolvePackageJsonExports": true,
+    // "verbatimModuleSyntax": true,
+
+    /* Diagnostics / lint-like checks */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "erasableSyntaxOnly": true,
+
+    /* Misc */
+    "moduleDetection": "force",
+    "noEmit": true,
+    "skipLibCheck": true // drop if you want full checking
+  },
+  "include": ["vite.config.ts"]
+}

@@ -1,0 +1,4 @@
+/* src/styles/tailwind.css — */
+@config "../../config/tailwind.config.js";
+/* Tailwind v4 (CSS-first) code below */
+@import "tailwindcss";
