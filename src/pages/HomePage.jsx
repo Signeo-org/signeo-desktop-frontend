@@ -12,54 +12,61 @@ export default function MainPage() {
     useSettings();
 
   const handlePlay = async () => {
-    if (!isPlaying) {
-      // Check if any windows should be opened
-      if (!subtitles && !signLanguage) {
-        alert(
-          "Both subtitles and sign language are disabled in settings. Please enable at least one in Settings."
-        );
-        return; // Exit early without changing play state
-      }
+  if (!isPlaying) {
+    if (!subtitles && !signLanguage) {
+      alert(
+        "Both subtitles and sign language are disabled in settings. Please enable at least one in Settings."
+      );
+      return;
+    }
 
-      // Start translation
-      setIsPlaying(true);
+    setIsPlaying(true);
 
-      // runtime check so we don't crash in the browser
-      if (window.electronAPI) {
-        try {
-          // Close any existing windows first
-          await window.electronAPI.closeAuxWindows();
-
-          // Open the enabled windows
-          if (subtitles) {
-            await window.electronAPI.openWindow("subtitle");
-          }
-          if (signLanguage) {
-            await window.electronAPI.openWindow("sign");
-          }
-        } catch (error) {
-          console.error("Error managing windows:", error);
-          alert(
-            "Failed to manage auxiliary windows. Please check the console for details."
-          );
-          setIsPlaying(false);
+    if (window.electronAPI) {
+      try {
+        // Start AudioTranscriptionTool.exe via backend API
+        const startResponse = await fetch("http://localhost:5000/start", {
+          method: "POST",
+        });
+        if (!startResponse.ok) {
+          throw new Error("Failed to start audio tool on server");
         }
-      } else {
-        alert("Auxiliary windows unavailable outside the Electron shell.");
+
+        // Close any existing auxiliary windows first
+        await window.electronAPI.closeAuxWindows();
+
+        // Open the enabled windows
+        if (subtitles) {
+          await window.electronAPI.openWindow("subtitle");
+        }
+        if (signLanguage) {
+          await window.electronAPI.openWindow("sign");
+        }
+      } catch (error) {
+        console.error("Error managing playback:", error);
+        alert(
+          "Failed to start audio tool or open windows. Check server and Electron logs."
+        );
         setIsPlaying(false);
       }
     } else {
-      // Stop translation
+      alert("Auxiliary windows unavailable outside the Electron shell.");
       setIsPlaying(false);
-      if (window.electronAPI) {
-        try {
-          await window.electronAPI.closeAuxWindows();
-        } catch (error) {
-          console.error("Error closing windows:", error);
-        }
+    }
+  } else {
+    setIsPlaying(false);
+    if (window.electronAPI) {
+      try {
+        // Stop the tool via API
+        await fetch("http://localhost:5000/stop", { method: "POST" });
+        await window.electronAPI.closeAuxWindows();
+      } catch (error) {
+        console.error("Error closing windows or stopping tool:", error);
       }
     }
-  };
+  }
+};
+
 
   React.useEffect(() => {
     return () => window.electronAPI?.closeAuxWindows();

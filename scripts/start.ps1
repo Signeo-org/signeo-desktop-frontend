@@ -44,4 +44,4 @@ if (Test-Path "node_modules/.ignored/electron") {
 pnpm install
 
 # ✅ Run dev server
-pnpm dev
+pnpm dev:full

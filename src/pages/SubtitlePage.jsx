@@ -1,4 +1,4 @@
-import axios from "axios";
+// SubtitlePage.jsx
 import React, { useEffect, useState } from "react";
 
 function SubtitlePage() {
@@ -17,22 +17,19 @@ function SubtitlePage() {
   const [transcription, setTranscription] = useState("");
 
   useEffect(() => {
-    const fetchTranscription = async () => {
-      try {
-        const response = await axios.get(
-          "http://localhost:5000/api/transcription"
-        );
-        setTranscription(response.data.transcription);
-      } catch (error) {
-        console.error("Error fetching transcription:", error);
-      }
+    const ws = new WebSocket("ws://localhost:5000");
+
+    ws.onmessage = (event) => {
+      setTranscription(event.data);
     };
 
-    fetchTranscription();
+    ws.onerror = (error) => {
+      console.error("WebSocket error:", error);
+    };
 
-    const intervalId = setInterval(fetchTranscription, 500);
-
-    return () => clearInterval(intervalId);
+    return () => {
+      ws.close();
+    };
   }, []);
 
   return (
@@ -43,11 +40,7 @@ function SubtitlePage() {
           : "bg-whiteTheme-light1 text-whiteTheme-accent1"
       }`}
     >
-      {transcription.length > 0 ? (
-        <h1>{transcription}</h1>
-      ) : (
-        <h1>Loading...</h1>
-      )}
+      <h1>{transcription}</h1>
     </div>
   );
 }
