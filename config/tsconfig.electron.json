@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.node.json",
+  "compilerOptions": {
+    /* Emit to separate folder used by electron-builder */
+    "outDir": "dist/electron",
+
+    /* Main/preload run directly in Node */
+    "target": "ESNext",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+
+    /* Smooth default-imports from CommonJS utilities */
+    "esModuleInterop": true,
+
+    /* Electron DOM globals */
+    "types": ["electron"]
+  },
+  "include": ["src/electron/**/*.ts"]
+}

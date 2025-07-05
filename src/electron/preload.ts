@@ -1,0 +1,57 @@
+import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
+
+export interface ElectronAPI {
+  /** Subscribe for as-many-times-as-needed events */
+  on: (
+    channel: string,
+    listener: (evt: IpcRendererEvent, ...args: unknown[]) => void
+  ) => void;
+  /** Subscribe for one-shot events */
+  once: (
+    channel: string,
+    listener: (evt: IpcRendererEvent, ...args: unknown[]) => void
+  ) => void;
+  /** Invoke/await pattern */
+  invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
+
+  /* high-level helpers */
+  openAuxWindows: () => void;
+  closeAuxWindows: () => Promise<boolean>;
+  openWindow: (windowType: 'subtitle' | 'sign') => Promise<boolean>;
+  updateTheme: (darkMode: boolean) => void;
+  onUpdateTheme: (callback: (darkMode: boolean) => void) => void;
+
+  /* tiny utility that shows the effective build mode */
+  env: { NODE_ENV: string | undefined };
+}
+
+const api: ElectronAPI = {
+  on: (ch, fn) => ipcRenderer.on(ch, fn),
+  once: (ch, fn) => ipcRenderer.once(ch, fn),
+  invoke: (ch, ...a) => ipcRenderer.invoke(ch, ...a),
+
+  openAuxWindows: () => {
+    ipcRenderer.send("toggle-sign-window", true);
+    ipcRenderer.send("toggle-subtitle-window", true);
+  },
+  closeAuxWindows: () => {
+    return ipcRenderer.invoke('closeAuxWindows');
+  },
+  openWindow: (windowType) => {
+    return ipcRenderer.invoke('openWindow', windowType);
+  },
+
+  updateTheme: (darkMode: boolean) => {
+    ipcRenderer.send('update-theme', darkMode);
+  },
+
+  onUpdateTheme: (callback: (darkMode: boolean) => void) => {
+    ipcRenderer.on('theme-updated', (_, darkMode: boolean) => {
+      callback(darkMode);
+    });
+  },
+
+  env: { NODE_ENV: process.env.NODE_ENV },
+};
+
+contextBridge.exposeInMainWorld("electronAPI", api);
