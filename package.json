@@ -5,9 +5,7 @@
   "type": "module",
   "main": "dist/electron/main.js",
   "scripts": {
-    "start-server": "node src/server.js",
     "dev": "vite",
-    "dev:full": "concurrently -k \"pnpm start-server\" \"pnpm dev\"",
     "build": "vite build && electron-builder",
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
     "preview": "vite preview"
@@ -53,15 +51,11 @@
     "@mui/lab": "7.0.0-beta.14",
     "@mui/material": "^7.2.0",
     "axios": "^1.10.0",
-    "cors": "^2.8.5",
     "electron-store": "^10.1.0",
-    "express": "^5.1.0",
-    "node-fetch": "^3.3.2",
     "prop-types": "^15.8.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-router-dom": "^7.6.3",
-    "ws": "^8.18.3"
+    "react-router-dom": "^7.6.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",
