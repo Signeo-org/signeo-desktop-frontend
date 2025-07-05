@@ -40,14 +40,5 @@ if (Test-Path "node_modules/.ignored/electron") {
     Remove-Item -Path "node_modules/.ignored/electron" -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-# ✅ Copy backend files from ../backend/build/Release into ./resources
-if (Test-Path "../backend/build/Release") {
-    Write-Host "Copying backend files from ../backend/build/Release to ./resources..."
-    Copy-Item -Path "../backend/build/Release/*" -Destination "./resources" -Recurse -Force -ErrorAction SilentlyContinue
-}
-else {
-    Write-Host "Backend build directory not found. Skipping copy."
-}
-
 # ✅ Install dependencies
 pnpm install
