@@ -3,4 +3,4 @@
 .\scripts\build.ps1
 
 # ✅ Run dev server
-pnpm dev:full
+pnpm dev
