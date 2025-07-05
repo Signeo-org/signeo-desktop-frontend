@@ -17,9 +17,14 @@ export interface ElectronAPI {
   /* high-level helpers */
   openAuxWindows: () => void;
   closeAuxWindows: () => Promise<boolean>;
-  openWindow: (windowType: 'subtitle' | 'sign') => Promise<boolean>;
+  openWindow: (windowType: "subtitle" | "sign") => Promise<boolean>;
   updateTheme: (darkMode: boolean) => void;
   onUpdateTheme: (callback: (darkMode: boolean) => void) => void;
+
+  /* audio tool controls */
+  startAudioTool: () => Promise<unknown>;
+  stopAudioTool: () => Promise<unknown>;
+  onTranscriptionLine: (callback: (line: string) => void) => void;
 
   /* tiny utility that shows the effective build mode */
   env: { NODE_ENV: string | undefined };
@@ -35,19 +40,30 @@ const api: ElectronAPI = {
     ipcRenderer.send("toggle-subtitle-window", true);
   },
   closeAuxWindows: () => {
-    return ipcRenderer.invoke('closeAuxWindows');
+    return ipcRenderer.invoke("closeAuxWindows");
   },
   openWindow: (windowType) => {
-    return ipcRenderer.invoke('openWindow', windowType);
+    return ipcRenderer.invoke("openWindow", windowType);
   },
 
   updateTheme: (darkMode: boolean) => {
-    ipcRenderer.send('update-theme', darkMode);
+    ipcRenderer.send("update-theme", darkMode);
   },
 
   onUpdateTheme: (callback: (darkMode: boolean) => void) => {
-    ipcRenderer.on('theme-updated', (_, darkMode: boolean) => {
+    ipcRenderer.on("theme-updated", (_, darkMode: boolean) => {
       callback(darkMode);
+    });
+  },
+
+  // Audio tool start/stop commands
+  startAudioTool: () => ipcRenderer.invoke("start-audio-tool"),
+  stopAudioTool: () => ipcRenderer.invoke("stop-audio-tool"),
+
+  // Real-time transcription line subscription
+  onTranscriptionLine: (callback: (line: string) => void) => {
+    ipcRenderer.on("transcription-line", (_, line: string) => {
+      callback(line);
     });
   },
 
