@@ -346,7 +346,7 @@ ipcMain.handle("launch-audio-tool", (event) => {
       deviceIndexSent = true;
       console.log("Prompt detected. Sending index in 500ms...");
       setTimeout(() => {
-        transcriptionProcess?.stdin.write("1\n");
+        transcriptionProcess?.stdin.write("12\n");
       }, 500);
     }
 
