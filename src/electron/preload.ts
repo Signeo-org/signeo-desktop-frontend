@@ -75,9 +75,9 @@ const api: ElectronAPI = {
   },
 
   onTranscriptionOutput: (callback) => {
-    transcriptionCallbacks.push(callback);
+    console.log("🧠 onTranscriptionOutput subscribed");
 
-    // Flush backlog
+    transcriptionCallbacks.push(callback);
     while (transcriptionBacklog.length > 0) {
       const message = transcriptionBacklog.shift();
       if (message) callback(message);

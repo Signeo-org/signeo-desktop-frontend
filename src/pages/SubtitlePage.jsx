@@ -11,28 +11,29 @@ function SubtitlePage() {
 
   useEffect(() => {
     const handleText = (data) => {
+      console.log("📥 Raw data received:", data);
       buffer.current += data;
 
       const all = buffer.current.split(/\r?\n/);
       buffer.current = all.pop(); // keep incomplete line
 
-      const newLines = all
+      const cleanedLines = all
         .map((line) => line.trim())
         .filter((line) => line.length > 0)
-        .map((line) =>
-          line.replace(/^\[Transcription\]\s*/, "").trim()
-        );
+        .map((line) => line.replace(/^\[Transcription\]\s*/, "").trim());
 
-      if (newLines.length > 0) {
+      for (const line of cleanedLines) {
+        console.log("📤 Dispatching subtitle:", line);
+        window.dispatchEvent(new CustomEvent("subtitle-update", { detail: line }));
+      }
+
+      if (cleanedLines.length > 0) {
         setLines((prev) => {
-          const combined = [...prev, ...newLines];
-
-          // ✅ Remove exact duplicates of the last line
+          const combined = [...prev, ...cleanedLines];
           const deduped = combined.filter(
             (line, i, arr) => i === 0 || line !== arr[i - 1]
           );
-
-          return deduped.slice(-2); // keep last 2 unique lines
+          return deduped.slice(-2);
         });
       }
     };
@@ -41,9 +42,7 @@ function SubtitlePage() {
       window.electronAPI.onTranscriptionOutput(handleText);
     }
 
-    return () => {
-      // Cleanup if needed later
-    };
+    return () => {};
   }, []);
 
   return (
