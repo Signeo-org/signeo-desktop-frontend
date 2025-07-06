@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, screen, shell } from "electron";
 import Store from "electron-store";
+import { spawn } from "node:child_process";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -113,6 +114,14 @@ app.on("window-all-closed", () => {
     mainWindow = null;
   }
 });
+
+app.on("will-quit", () => {
+  if (transcriptionProcess) {
+    transcriptionProcess.kill();
+    transcriptionProcess = null;
+  }
+});
+
 
 // Broadcast theme to all windows
 const broadcastTheme = (darkMode: boolean) => {
@@ -291,4 +300,71 @@ ipcMain.handle('closeAuxWindows', async () => {
     console.error('Error closing auxiliary windows:', error);
     throw new Error('Failed to close auxiliary windows');
   }
+});
+
+let transcriptionProcess: ReturnType<typeof spawn> | null = null;
+let currentWebContents: Electron.WebContents | null = null;
+
+ipcMain.handle("launch-audio-tool", (event) => {
+  if (transcriptionProcess) {
+    console.log("Transcription tool is already running.");
+    return true; // Don't launch again
+  }
+
+  const exePath = path.join(__dirname, "../../resources/AudioTranscriptionTool.exe");
+  console.log("Launching tool at:", exePath);
+
+  transcriptionProcess = spawn(exePath, [], {
+    cwd: path.dirname(exePath),
+    stdio: ["pipe", "pipe", "pipe"]
+  });
+
+  currentWebContents = event.sender;
+  let buffer = "";
+  let deviceIndexSent = false; // Move inside so it's per-process
+
+  transcriptionProcess.stdout.on("data", (data) => {
+    const text = data.toString();
+    console.log("Tool output:", text);
+    buffer += text;
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) {
+        win.webContents.send("transcription-output", text);
+      }
+    });
+
+    // ✅ Only send once, for this process
+    if (/Enter the index.*Press ENTER to stop/i.test(text) && !deviceIndexSent) {
+      deviceIndexSent = true;
+      console.log("Prompt detected. Sending index in 500ms...");
+      setTimeout(() => {
+        transcriptionProcess?.stdin.write("1\n");
+      }, 500);
+    }
+
+    const deviceLines = buffer.match(/\[\d+\] .+\[Input\]/g);
+    if (deviceLines && currentWebContents) {
+      currentWebContents.send("device-list", deviceLines);
+    }
+  });
+
+  transcriptionProcess.stderr.on("data", (err) => {
+    console.error("Tool error:", err.toString());
+  });
+
+  transcriptionProcess.on("close", (code) => {
+    console.log("Tool exited with code", code);
+    transcriptionProcess = null; // Allow relaunching
+  });
+
+  return true;
+});
+
+
+ipcMain.handle("select-audio-device", (event, index: number) => {
+  if (transcriptionProcess && transcriptionProcess.stdin.writable) {
+    transcriptionProcess.stdin.write(`${index}\n`);
+    return true;
+  }
+  return false;
 });

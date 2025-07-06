@@ -46,6 +46,16 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (window.electronAPI?.launchAudioTool) {
+      window.electronAPI.launchAudioTool().then((launched) => {
+        if (!launched) {
+          console.warn("Failed to launch AudioTranscriptionTool.");
+        }
+      });
+    }
+  }, []);
+
   // Update theme in all windows when it changes
   const updateTheme = (newTheme: boolean) => {
     setDarkMode(newTheme);

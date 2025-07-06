@@ -1,3 +1,4 @@
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../App";
 import { useSettings } from "../contexts/SettingsContext";
@@ -6,15 +7,48 @@ export default function SettingsPage() {
   const navigate = useNavigate();
   const { darkMode, setDarkMode } = useTheme();
   const {
-    audioInput,
     fontSize,
     signLanguage,
     subtitles,
-    setAudioInput,
     setFontSize,
     setSignLanguage,
     setSubtitles,
   } = useSettings();
+
+  const [devices, setDevices] = useState([]);
+  const [selectedDeviceIndex, setSelectedDeviceIndex] = useState("");
+
+  // ✅ Load saved selection
+  useEffect(() => {
+    const savedIndex = localStorage.getItem("selectedDeviceIndex");
+    if (savedIndex !== null) {
+      setSelectedDeviceIndex(savedIndex);
+    }
+  }, []);
+
+  // ✅ Set up listener + request device list
+  useEffect(() => {
+    if (window.electronAPI?.onAudioDeviceList) {
+      window.electronAPI.onAudioDeviceList((deviceList) => {
+        setDevices(deviceList);
+
+        // ✅ Auto-send previously selected device if available
+        const savedIndex = localStorage.getItem("selectedDeviceIndex");
+        if (savedIndex !== null && deviceList[+savedIndex]) {
+          window.electronAPI?.selectAudioDevice(+savedIndex);
+        }
+      });
+
+      window.electronAPI.getAudioDevices(); // trigger device list
+    }
+  }, []);
+
+  const handleDeviceChange = (e) => {
+    const index = parseInt(e.target.value);
+    setSelectedDeviceIndex(index);
+    localStorage.setItem("selectedDeviceIndex", String(index)); // ✅ Save to localStorage
+    window.electronAPI?.selectAudioDevice(index); // ✅ Send index to backend
+  };
 
   return (
     <div className="flex flex-col items-center justify-center h-screen px-4 transition">
@@ -35,13 +69,18 @@ export default function SettingsPage() {
               Audio Input
             </label>
             <select
-              value={audioInput}
-              onChange={(e) => setAudioInput(e.target.value)}
+              value={selectedDeviceIndex}
+              onChange={handleDeviceChange}
               className="w-full px-3 py-2 mt-1 rounded-lg bg-white dark:bg-gray-800 border dark:border-gray-700"
             >
-              <option>Microphone 1</option>
-              <option>Microphone 2</option>
-              <option>System Audio</option>
+              <option disabled value="">
+                Select a device
+              </option>
+              {devices.map((device, index) => (
+                <option key={index} value={index}>
+                  {device}
+                </option>
+              ))}
             </select>
           </div>
 

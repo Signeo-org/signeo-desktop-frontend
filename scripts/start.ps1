@@ -21,7 +21,7 @@ $viteLocal = Test-Path "./node_modules/.bin/vite"
 
 if (-not $viteGlobal -and -not $viteLocal) {
     Write-Host "Vite not found globally or locally. Installing locally with pnpm..."
-    pnpm add -D vite
+    pnpm install vite
 }
 else {
     Write-Host "Vite is already installed."
