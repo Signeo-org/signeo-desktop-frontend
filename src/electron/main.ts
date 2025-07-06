@@ -122,7 +122,6 @@ app.on("will-quit", () => {
   }
 });
 
-
 // Broadcast theme to all windows
 const broadcastTheme = (darkMode: boolean) => {
   allWindows.forEach((win) => {
@@ -268,12 +267,12 @@ ipcMain.on("toggle-subtitle-window", (event, arg) => {
 });
 
 // Handle window opening based on type
-ipcMain.handle('openWindow', async (event, windowType: 'subtitle' | 'sign') => {
+ipcMain.handle("openWindow", async (event, windowType: "subtitle" | "sign") => {
   try {
-    if (windowType === 'subtitle' && !subtitleWindow) {
+    if (windowType === "subtitle" && !subtitleWindow) {
       createSubtitleWindow();
       return true;
-    } else if (windowType === 'sign' && !signWindow) {
+    } else if (windowType === "sign" && !signWindow) {
       createSignWindow();
       return true;
     }
@@ -285,7 +284,7 @@ ipcMain.handle('openWindow', async (event, windowType: 'subtitle' | 'sign') => {
 });
 
 // Handle closing all auxiliary windows
-ipcMain.handle('closeAuxWindows', async () => {
+ipcMain.handle("closeAuxWindows", async () => {
   try {
     if (subtitleWindow) {
       subtitleWindow.close();
@@ -297,8 +296,8 @@ ipcMain.handle('closeAuxWindows', async () => {
     }
     return true;
   } catch (error) {
-    console.error('Error closing auxiliary windows:', error);
-    throw new Error('Failed to close auxiliary windows');
+    console.error("Error closing auxiliary windows:", error);
+    throw new Error("Failed to close auxiliary windows");
   }
 });
 
@@ -310,14 +309,20 @@ ipcMain.handle("launch-audio-tool", (event) => {
     console.log("Transcription tool is already running.");
     return true; // Don't launch again
   }
-
-  const exePath = path.join(__dirname, "../../resources/AudioTranscriptionTool.exe");
+  const exePath = app.isPackaged
+    ? path.join(process.resourcesPath, "resources/AudioTranscriptionTool.exe")
+    : path.join(__dirname, "../../resources/AudioTranscriptionTool.exe");
   console.log("Launching tool at:", exePath);
 
   transcriptionProcess = spawn(exePath, [], {
     cwd: path.dirname(exePath),
-    stdio: ["pipe", "pipe", "pipe"]
+    stdio: ["pipe", "pipe", "pipe"],
   });
+
+  if (!transcriptionProcess) {
+    console.error("Failed to launch transcription process.");
+    return false;
+  }
 
   currentWebContents = event.sender;
   let buffer = "";
@@ -334,7 +339,10 @@ ipcMain.handle("launch-audio-tool", (event) => {
     });
 
     // ✅ Only send once, for this process
-    if (/Enter the index.*Press ENTER to stop/i.test(text) && !deviceIndexSent) {
+    if (
+      /Enter the index.*Press ENTER to stop/i.test(text) &&
+      !deviceIndexSent
+    ) {
       deviceIndexSent = true;
       console.log("Prompt detected. Sending index in 500ms...");
       setTimeout(() => {
@@ -359,7 +367,6 @@ ipcMain.handle("launch-audio-tool", (event) => {
 
   return true;
 });
-
 
 ipcMain.handle("select-audio-device", (event, index: number) => {
   if (transcriptionProcess && transcriptionProcess.stdin.writable) {
