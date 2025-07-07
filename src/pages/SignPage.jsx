@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useTheme } from "../App";
 
 function SignPage() {
@@ -12,10 +12,10 @@ function SignPage() {
 
   useEffect(() => {
     if (window.electronAPI?.onTranscriptionOutput) {
-      console.log("🧠 onTranscriptionOutput subscribed");
+      console.log("[0]: onTranscriptionOutput subscribed");
 
       window.electronAPI.onTranscriptionOutput((text) => {
-        console.log("📝 Received transcription:", text);
+        console.log("[0]: Received transcription:", text);
 
         const words = text
           .replace(/\[.*?\]/g, "")
@@ -50,11 +50,11 @@ function SignPage() {
       playedWordsRef.current.add(word);
       setCurrentWord(word);
 
-      console.log("📼 Playing:", word, "→", path);
+      console.log("[0]: Playing:", word, "→", path);
 
       const videoExists = await checkVideoExists(path);
       if (!videoExists) {
-        console.warn(`⚠️ Skipping missing/invalid video for: ${word}`);
+        console.warn("[0] [WARNING]: Skipping missing/invalid video for: ${word}");
         continue;
       }
 
@@ -74,7 +74,7 @@ function SignPage() {
         };
 
         const handleError = () => {
-          console.warn(`⚠️ Could not load video for: ${word}`);
+          console.warn("[0] [WARNING]: Could not load video for: ${word}");
           cleanup();
           resolve();
         };
@@ -83,7 +83,7 @@ function SignPage() {
           video.removeEventListener("canplay", handleCanPlay);
           video.playbackRate = 1.5;
           video.play().catch((err) => {
-            console.error("❌ Playback error:", err);
+            console.error("[0] [ERROR]: Playback error:", err);
             cleanup();
             resolve();
           });
@@ -122,7 +122,11 @@ function SignPage() {
         ref={videoRef}
         autoPlay
         playsInline
-        style={{ maxHeight: "80vh", maxWidth: "90vw", visibility: currentWord ? "visible" : "hidden" }}
+        style={{
+          maxHeight: "80vh",
+          maxWidth: "90vw",
+          visibility: currentWord ? "visible" : "hidden",
+        }}
       />
       {!currentWord && <h1 className="mt-4">Waiting for signs...</h1>}
     </div>

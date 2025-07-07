@@ -11,7 +11,7 @@ function SubtitlePage() {
 
   useEffect(() => {
     const handleText = (data) => {
-      console.log("📥 Raw data received:", data);
+      console.log("[0]: Raw data received:", data);
       buffer.current += data;
 
       const all = buffer.current.split(/\r?\n/);
@@ -23,7 +23,7 @@ function SubtitlePage() {
         .map((line) => line.replace(/^\[Transcription\]\s*/, "").trim());
 
       for (const line of cleanedLines) {
-        console.log("📤 Dispatching subtitle:", line);
+        console.log("[0]: Dispatching subtitle:", line);
         window.dispatchEvent(new CustomEvent("subtitle-update", { detail: line }));
       }
 

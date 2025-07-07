@@ -15,6 +15,18 @@ export default function SettingsPage() {
     setSubtitles,
   } = useSettings();
 
+  const toggleWindow = async (windowType) => {
+    if (window.electronAPI) {
+      if (windowType === 'sign') {
+        await window.electronAPI.toggleSignWindow(!signLanguage);
+        setSignLanguage(!signLanguage);
+      } else if (windowType === 'subtitle') {
+        await window.electronAPI.toggleSubtitleWindow(!subtitles);
+        setSubtitles(!subtitles);
+      }
+    }
+  };
+
   const [devices, setDevices] = useState([]);
   const [selectedDeviceIndex, setSelectedDeviceIndex] = useState("");
 
@@ -26,22 +38,19 @@ export default function SettingsPage() {
     }
   }, []);
 
-  // ✅ Set up listener + request device list
-  useEffect(() => {
-    if (window.electronAPI?.onAudioDeviceList) {
-      window.electronAPI.onAudioDeviceList((deviceList) => {
+  // Load devices when the dropdown is clicked
+  const handleDropdownClick = () => {
+    if (devices.length === 0 && window.electronAPI?.onAudioDeviceList) {
+      const handleDeviceList = (deviceList) => {
         setDevices(deviceList);
+        // Remove the event listener after we get the devices
+        window.electronAPI.offAudioDeviceList(handleDeviceList);
+      };
 
-        // ✅ Auto-send previously selected device if available
-        const savedIndex = localStorage.getItem("selectedDeviceIndex");
-        if (savedIndex !== null && deviceList[+savedIndex]) {
-          window.electronAPI?.selectAudioDevice(+savedIndex);
-        }
-      });
-
-      window.electronAPI.getAudioDevices(); // trigger device list
+      window.electronAPI.onAudioDeviceList(handleDeviceList);
+      window.electronAPI.getAudioDevices();
     }
-  }, []);
+  };
 
   const handleDeviceChange = (e) => {
     const index = parseInt(e.target.value);
@@ -71,6 +80,7 @@ export default function SettingsPage() {
             <select
               value={selectedDeviceIndex}
               onChange={handleDeviceChange}
+              onClick={handleDropdownClick}
               className="w-full px-3 py-2 mt-1 rounded-lg bg-white dark:bg-gray-800 border dark:border-gray-700"
             >
               <option disabled value="">
@@ -103,24 +113,28 @@ export default function SettingsPage() {
             <label className="text-gray-600 dark:text-gray-400">
               Show Subtitles
             </label>
-            <input
-              type="checkbox"
-              checked={subtitles}
-              onChange={() => setSubtitles(!subtitles)}
-              className="w-5 h-5"
-            />
+            <button
+              onClick={() => toggleWindow('subtitle')}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${subtitles ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'}`}
+            >
+              <span
+                className={`${subtitles ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+              />
+            </button>
           </div>
 
           <div className="flex items-center justify-between pt-2">
             <label className="text-gray-600 dark:text-gray-400">
               Show Sign Language
             </label>
-            <input
-              type="checkbox"
-              checked={signLanguage}
-              onChange={() => setSignLanguage(!signLanguage)}
-              className="w-5 h-5"
-            />
+            <button
+              onClick={() => toggleWindow('sign')}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${signLanguage ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'}`}
+            >
+              <span
+                className={`${signLanguage ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+              />
+            </button>
           </div>
         </div>
 

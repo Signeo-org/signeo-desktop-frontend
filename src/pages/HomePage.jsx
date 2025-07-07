@@ -1,12 +1,13 @@
 // MainPage.jsx (JS version – no TypeScript keywords)
-import React, { useState } from "react";
+import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../App";
+import { useApp } from "../contexts/AppContext";
 import { useSettings } from "../contexts/SettingsContext";
 
 export default function MainPage() {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(false);
+  const { isPlaying, setIsPlaying, isInitializing, setIsInitializing } =
+    useApp();
   const navigate = useNavigate();
   const { darkMode, setDarkMode } = useTheme();
   const { subtitles, signLanguage, language, setLanguage, availableLanguages } =
@@ -14,63 +15,57 @@ export default function MainPage() {
 
   const handlePlay = async () => {
     if (!isPlaying) {
-      // Check if any windows should be opened
-      if (!subtitles && !signLanguage) {
-        alert(
-          "Both subtitles and sign language are disabled in settings. Please enable at least one in Settings."
-        );
-        return; // Exit early without changing play state
-      }
-
       // Start translation
       setIsInitializing(true);
-      
+
       try {
-        // runtime check so we don't crash in the browser
         if (window.electronAPI) {
-          try {
-            // Close any existing windows first
+          // Launch the transcription tool first
+          const success = await window.electronAPI.launchAudioTool();
+          if (!success) {
+            throw new Error("Failed to start transcription tool");
+          }
+
+          // Then open the windows if needed
+          if (subtitles || signLanguage) {
             await window.electronAPI.closeAuxWindows();
 
-            // Open the enabled windows
             if (subtitles) {
               await window.electronAPI.openWindow("subtitle");
             }
             if (signLanguage) {
               await window.electronAPI.openWindow("sign");
             }
-            
-            // Only set playing to true if everything succeeded
-            setIsPlaying(true);
-          } catch (error) {
-            console.error("Error managing windows:", error);
-            alert(
-              "Failed to manage auxiliary windows. Please check the console for details."
-            );
           }
+
+          setIsPlaying(true);
         } else {
           alert("Auxiliary windows unavailable outside the Electron shell.");
         }
+      } catch (error) {
+        console.error("[0] [ERROR]: Error starting translation:", error);
+        alert(
+          "Failed to start translation. Please check the console for details."
+        );
+        setIsPlaying(false);
       } finally {
-        // Always set initializing to false when done
         setIsInitializing(false);
       }
     } else {
       // Stop translation
-      setIsPlaying(false);
-      if (window.electronAPI) {
-        try {
+      try {
+        if (window.electronAPI) {
+          // Close the transcription tool
           await window.electronAPI.closeAuxWindows();
-        } catch (error) {
-          console.error("Error closing windows:", error);
+          await window.electronAPI.stopAudioTool();
         }
+      } catch (error) {
+        console.error("[0] [ERROR]: Error stopping translation:", error);
+      } finally {
+        setIsPlaying(false);
       }
     }
   };
-
-  React.useEffect(() => {
-    return () => window.electronAPI?.closeAuxWindows();
-  }, []);
 
   return (
     <div className="flex flex-col items-center justify-center h-screen px-4 transition duration-300">
@@ -116,16 +111,32 @@ export default function MainPage() {
           className={`w-full px-4 py-2 text-lg font-medium rounded-lg text-white transition-all transform flex items-center justify-center gap-2 ${
             isPlaying
               ? "bg-red-600 hover:bg-red-700"
-              : isInitializing 
-                ? "bg-blue-500 cursor-not-allowed"
-                : "bg-blue-600 hover:bg-blue-700"
+              : isInitializing
+              ? "bg-blue-500 cursor-not-allowed"
+              : "bg-blue-600 hover:bg-blue-700"
           }`}
         >
           {isInitializing ? (
             <>
-              <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              <svg
+                className="animate-spin -ml-1 mr-2 h-5 w-5 text-white"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
               </svg>
               Initializing...
             </>

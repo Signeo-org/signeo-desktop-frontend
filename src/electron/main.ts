@@ -96,9 +96,9 @@ function createWindow() {
   } else {
     // In production, we need to use a different path
     const indexPath = path.join(RENDERER_DIST, "index.html");
-    console.log("Loading production index.html from:", indexPath);
+    console.log("[0]: Loading production index.html from:", indexPath);
     mainWindow.loadFile(indexPath).catch((err) => {
-      console.error("Failed to load index.html:", err);
+      console.error("[0] [ERROR]: Failed to load index.html:", err);
     });
   }
 
@@ -193,16 +193,37 @@ function createSignWindow() {
   }
 }
 
-ipcMain.on("toggle-sign-window", (event, arg) => {
-  if (arg) {
-    if (!signWindow) {
+ipcMain.handle("toggle-sign-window", async (event, shouldShow: boolean) => {
+  if (shouldShow) {
+    if (!signWindow || signWindow.isDestroyed()) {
       createSignWindow();
+      return true;
     }
   } else {
-    if (signWindow) {
+    if (signWindow && !signWindow.isDestroyed()) {
       signWindow.close();
+      signWindow = null;
+      return true;
     }
   }
+  return false;
+});
+
+// Toggle subtitle window
+ipcMain.handle('toggle-subtitle-window', async (event, shouldShow: boolean) => {
+  if (shouldShow) {
+    if (!subtitleWindow || subtitleWindow.isDestroyed()) {
+      createSubtitleWindow();
+      return true;
+    }
+  } else {
+    if (subtitleWindow && !subtitleWindow.isDestroyed()) {
+      subtitleWindow.close();
+      subtitleWindow = null;
+      return true;
+    }
+  }
+  return false;
 });
 
 let subtitleWindow: BrowserWindow | null;
@@ -278,7 +299,7 @@ ipcMain.handle("openWindow", async (event, windowType: "subtitle" | "sign") => {
     }
     return false;
   } catch (error) {
-    console.error(`Error opening ${windowType} window:`, error);
+    console.error("[0] [ERROR]: Error opening ${windowType} window:", error);
     throw new Error(`Failed to open ${windowType} window`);
   }
 });
@@ -296,82 +317,174 @@ ipcMain.handle("closeAuxWindows", async () => {
     }
     return true;
   } catch (error) {
-    console.error("Error closing auxiliary windows:", error);
+    console.error("[0] [ERROR]: Error closing auxiliary windows:", error);
     throw new Error("Failed to close auxiliary windows");
   }
 });
 
 let transcriptionProcess: ReturnType<typeof spawn> | null = null;
 let currentWebContents: Electron.WebContents | null = null;
+let isLaunching = false;
+let isToolRunning = false;
 
-ipcMain.handle("launch-audio-tool", (event) => {
-  if (transcriptionProcess) {
-    console.log("Transcription tool is already running.");
-    return true; // Don't launch again
+ipcMain.handle("launch-audio-tool", async (event) => {
+  // If already running, just return success
+  if (isToolRunning) {
+    console.log("[0]: Transcription tool is already running.");
+    return true;
   }
-  const exePath = app.isPackaged
-    ? path.join(process.resourcesPath, "resources/AudioTranscriptionTool.exe")
-    : path.join(__dirname, "../../resources/AudioTranscriptionTool.exe");
-  console.log("Launching tool at:", exePath);
 
-  transcriptionProcess = spawn(exePath, [], {
-    cwd: path.dirname(exePath),
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-
-  if (!transcriptionProcess) {
-    console.error("Failed to launch transcription process.");
+  // Prevent multiple concurrent launches
+  if (isLaunching) {
+    console.log("[0]: Tool launch already in progress");
     return false;
   }
 
-  currentWebContents = event.sender;
-  let buffer = "";
-  let deviceIndexSent = false; // Move inside so it's per-process
+  isLaunching = true;
+  isToolRunning = true;
+  
+  const exePath = app.isPackaged
+    ? path.join(process.resourcesPath, "resources/AudioTranscriptionTool.exe")
+    : path.join(__dirname, "../../resources/AudioTranscriptionTool.exe");
+  
+  console.log("[0]: Launching tool at:", exePath);
 
-  transcriptionProcess.stdout.on("data", (data) => {
-    const text = data.toString();
-    console.log("Tool output:", text);
-    buffer += text;
-    BrowserWindow.getAllWindows().forEach((win) => {
-      if (!win.isDestroyed()) {
-        win.webContents.send("transcription-output", text);
-      }
+  try {
+    const process = spawn(exePath, [], {
+      cwd: path.dirname(exePath),
+      stdio: ["pipe", "pipe", "pipe"],
     });
 
-    // ✅ Only send once, for this process
-    if (
-      /Enter the index.*Press ENTER to stop/i.test(text) &&
-      !deviceIndexSent
-    ) {
-      deviceIndexSent = true;
-      console.log("Prompt detected. Sending index in 500ms...");
-      setTimeout(() => {
-        transcriptionProcess?.stdin.write("12\n");
-      }, 500);
-    }
+    // Store the process reference
+    transcriptionProcess = process;
+    currentWebContents = event.sender;
+    let buffer = "";
+    let deviceIndexSent = false;
 
-    const deviceLines = buffer.match(/\[\d+\] .+\[Input\]/g);
-    if (deviceLines && currentWebContents) {
-      currentWebContents.send("device-list", deviceLines);
-    }
-  });
+    // Set up event handlers
+    const onError = (err) => {
+      console.error('[0] [ERROR]: Transcription tool error:', err);
+      cleanupProcess();
+    };
 
-  transcriptionProcess.stderr.on("data", (err) => {
-    console.error("Tool error:", err.toString());
-  });
+    const onExit = (code, signal) => {
+      console.log(`[0]: Transcription tool exited with code ${code} and signal ${signal}`);
+      isToolRunning = false;
+      cleanupProcess();
+    };
 
-  transcriptionProcess.on("close", (code) => {
-    console.log("Tool exited with code", code);
-    transcriptionProcess = null; // Allow relaunching
-  });
+    const onStdout = (data) => {
+      const raw = data.toString();
+      const formatted = raw
+        .split(/\r?\n/)
+        .map((line) => `[1]: ${line}`)
+        .join("\n");
+      
+      console.log(formatted);
+      buffer += formatted;
+      
+      // Send output to all windows
+      BrowserWindow.getAllWindows().forEach((win) => {
+        if (!win.isDestroyed()) {
+          win.webContents.send("transcription-output", formatted);
+        }
+      });
 
-  return true;
+      // Handle device selection prompt
+      if (/Enter the index.*Press ENTER to stop/i.test(formatted) && !deviceIndexSent) {
+        deviceIndexSent = true;
+        console.log("[0]: Prompt detected. Sending index in 500ms...");
+        setTimeout(() => {
+          if (process.stdin.writable) {
+            process.stdin.write("12\n");
+          }
+        }, 500);
+      }
+
+      // Send device list to renderer
+      const deviceLines = buffer.match(/\[\d+\] .+\[Input\]/g);
+      if (deviceLines && currentWebContents) {
+        currentWebContents.send("device-list", deviceLines);
+      }
+    };
+
+    const onStderr = (err) => {
+      const raw = err.toString();
+      const formatted = raw
+        .split(/\r?\n/)
+        .map((line) => `[1] [ERROR]: ${line}`)
+        .join("\n");
+      console.error(formatted);
+    };
+
+    // Attach event listeners
+    process.on('error', onError);
+    process.on('exit', onExit);
+    process.stdout.on("data", onStdout);
+    process.stderr.on("data", onStderr);
+
+    // Return a cleanup function to remove listeners when the process ends
+    const cleanup = () => {
+      process.off('error', onError);
+      process.off('exit', onExit);
+      process.stdout.off("data", onStdout);
+      process.stderr.off("data", onStderr);
+    };
+
+    process.once('exit', cleanup);
+    process.once('error', cleanup);
+
+    return true;
+  } catch (error) {
+    console.error("[0] [ERROR]: Error launching transcription tool:", error);
+    cleanupProcess();
+    return false;
+  } finally {
+    isLaunching = false;
+  }
 });
+
+// Handle stop-audio-tool IPC call
+ipcMain.handle("stop-audio-tool", async () => {
+  console.log("[0]: Stopping transcription tool...");
+  return cleanupProcess();
+});
+
+// Helper function to clean up process references
+function cleanupProcess() {
+  if (transcriptionProcess) {
+    try {
+      if (!transcriptionProcess.killed) {
+        transcriptionProcess.kill();
+      }
+      return true;
+    } catch (error) {
+      console.error("[0] [ERROR]: Error stopping transcription tool:", error);
+      return false;
+    } finally {
+      transcriptionProcess = null;
+      currentWebContents = null;
+      isToolRunning = false;
+    }
+  }
+  isToolRunning = false;
+  return true;
+}
 
 ipcMain.handle("select-audio-device", (event, index: number) => {
-  if (transcriptionProcess && transcriptionProcess.stdin.writable) {
+  if (!transcriptionProcess || !transcriptionProcess.stdin || !transcriptionProcess.stdin.writable) {
+    console.error('[0] [ERROR]: No active transcription process or stdin not writable');
+    return false;
+  }
+  
+  try {
     transcriptionProcess.stdin.write(`${index}\n`);
     return true;
+  } catch (error) {
+    console.error('[0] [ERROR]: Failed to write to transcription process:', error);
+    cleanupProcess();
+    return false;
   }
-  return false;
 });
+
+

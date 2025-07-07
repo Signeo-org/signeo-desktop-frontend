@@ -12,8 +12,8 @@ createRoot(document.getElementById("root")!).render(
 // Use contextBridge
 // Listen the new, type-safe way
 window.electronAPI.on("main-process-message", (_e, message) => {
-  console.log(message);
+  console.log(`[0]: ${message}`);
 });
 
 // If you need the build mode inside React:
-console.log("Renderer is running in", import.meta.env.MODE); // "development" | "production"
+console.log(`[0]: Renderer is running in`, import.meta.env.MODE); // "development" | "production"

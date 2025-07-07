@@ -21,10 +21,14 @@ export interface ElectronAPI {
   updateTheme: (darkMode: boolean) => void;
   onUpdateTheme: (callback: (darkMode: boolean) => void) => void;
   launchAudioTool: () => Promise<boolean>;
+  stopAudioTool: () => Promise<boolean>;
   onTranscriptionOutput: (callback: (text: string) => void) => void;
   getAudioDevices: () => void;
   selectAudioDevice: (index: number) => Promise<boolean>;
   onAudioDeviceList: (callback: (devices: string[]) => void) => void;
+  offAudioDeviceList: (callback: (devices: string[]) => void) => void;
+  toggleSignWindow: (show: boolean) => Promise<boolean>;
+  toggleSubtitleWindow: (show: boolean) => Promise<boolean>;
 
   /* tiny utility that shows the effective build mode */
   env: { NODE_ENV: string | undefined };
@@ -32,6 +36,7 @@ export interface ElectronAPI {
 
 const transcriptionCallbacks: ((text: string) => void)[] = [];
 const transcriptionBacklog: string[] = [];
+const deviceListCallbacks: ((devices: string[]) => void)[] = [];
 
 // Handle streaming transcription
 ipcRenderer.on("transcription-output", (_event, text: string) => {
@@ -69,13 +74,23 @@ const api: ElectronAPI = {
       .invoke("launch-audio-tool")
       .then(() => true)
       .catch((err) => {
-        console.error("Failed to launch AudioTranscriptionTool.exe:", err);
+        console.error("[0] [ERROR]: Failed to launch AudioTranscriptionTool.exe:", err);
+        return false;
+      });
+  },
+
+  stopAudioTool: () => {
+    return ipcRenderer
+      .invoke("stop-audio-tool")
+      .then(() => true)
+      .catch((err) => {
+        console.error("[0] [ERROR]: Failed to stop AudioTranscriptionTool.exe:", err);
         return false;
       });
   },
 
   onTranscriptionOutput: (callback) => {
-    console.log("🧠 onTranscriptionOutput subscribed");
+    console.log("[0]: onTranscriptionOutput subscribed");
 
     transcriptionCallbacks.push(callback);
     while (transcriptionBacklog.length > 0) {
@@ -89,12 +104,43 @@ const api: ElectronAPI = {
   },
 
   onAudioDeviceList: (callback) => {
-    ipcRenderer.on("device-list", (_event, devices: string[]) => {
+    deviceListCallbacks.push(callback);
+    // Create a properly typed wrapper function that matches ipcRenderer's expected signature
+    const wrappedCallback = (_event: IpcRendererEvent, devices: string[]) => {
       callback(devices);
-    });
+    };
+    ipcRenderer.on("device-list", wrappedCallback);
+    
+    // Return a function to remove this specific listener
+    return () => {
+      const index = deviceListCallbacks.indexOf(callback);
+      if (index !== -1) {
+        deviceListCallbacks.splice(index, 1);
+      }
+      ipcRenderer.off("device-list", wrappedCallback);
+    };
   },
 
-  selectAudioDevice: (index) => ipcRenderer.invoke("select-audio-device", index),
+  offAudioDeviceList: (callback) => {
+    const index = deviceListCallbacks.indexOf(callback);
+    if (index !== -1) {
+      deviceListCallbacks.splice(index, 1);
+    }
+    // Create a properly typed wrapper function that matches ipcRenderer's expected signature
+    const wrappedCallback = (_event: IpcRendererEvent, devices: string[]) => {
+      callback(devices);
+    };
+    ipcRenderer.off("device-list", wrappedCallback);
+  },
+
+  selectAudioDevice: (index) =>
+    ipcRenderer.invoke("select-audio-device", index),
+    
+  toggleSignWindow: (show) => 
+    ipcRenderer.invoke("toggle-sign-window", show),
+    
+  toggleSubtitleWindow: (show) => 
+    ipcRenderer.invoke("toggle-subtitle-window", show),
 
   env: { NODE_ENV: process.env.NODE_ENV },
 };

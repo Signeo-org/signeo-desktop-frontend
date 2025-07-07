@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { HashRouter, Route, Routes } from "react-router-dom";
 
 // Electron API types are now in electron-env.d.ts
+import { AppProvider } from "./contexts/AppContext";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import HomePage from "./pages/HomePage";
 import SettingsPage from "./pages/SettingsPage";
@@ -46,16 +47,6 @@ function App() {
     };
   }, []);
 
-  useEffect(() => {
-    if (window.electronAPI?.launchAudioTool) {
-      window.electronAPI.launchAudioTool().then((launched) => {
-        if (!launched) {
-          console.warn("Failed to launch AudioTranscriptionTool.");
-        }
-      });
-    }
-  }, []);
-
   // Update theme in all windows when it changes
   const updateTheme = (newTheme: boolean) => {
     setDarkMode(newTheme);
@@ -66,22 +57,38 @@ function App() {
     }
   };
 
+  // In App.jsx
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (window.electronAPI) {
+        window.electronAPI.closeAuxWindows();
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, []);
+
   return (
     <ThemeContext.Provider value={{ darkMode, setDarkMode: updateTheme }}>
       <SettingsProvider>
-        <div className={darkMode ? "dark" : ""}>
-          <div className="min-h-screen bg-white text-black dark:bg-black dark:text-white transition-colors duration-300">
-            <HashRouter>
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/home" element={<HomePage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/sign" element={<SignPage />} />
-                <Route path="/subtitle" element={<SubtitlePage />} />
-              </Routes>
-            </HashRouter>
+        <AppProvider>
+          <div className={darkMode ? "dark" : ""}>
+            <div className="min-h-screen bg-white text-black dark:bg-black dark:text-white transition-colors duration-300">
+              <HashRouter>
+                <Routes>
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/home" element={<HomePage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/sign" element={<SignPage />} />
+                  <Route path="/subtitle" element={<SubtitlePage />} />
+                </Routes>
+              </HashRouter>
+            </div>
           </div>
-        </div>
+        </AppProvider>
       </SettingsProvider>
     </ThemeContext.Provider>
   );
