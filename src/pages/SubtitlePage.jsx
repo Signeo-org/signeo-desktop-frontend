@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 
 function SubtitlePage() {
   const [darkMode, setDarkMode] = useState(() => {
@@ -7,42 +7,32 @@ function SubtitlePage() {
   });
 
   const [lines, setLines] = useState([]);
-  const buffer = useRef("");
 
   useEffect(() => {
-    const handleText = (data) => {
-      console.log("[0]: Raw data received:", data);
-      buffer.current += data;
+    const handleText = (raw) => {
+      console.log("[React] Subtitle received:", raw);
 
-      const all = buffer.current.split(/\r?\n/);
-      buffer.current = all.pop(); // keep incomplete line
+      const cleaned = raw
+        .trim()
+        .replace(/^\[1\]:\s*/, "")
+        .replace(/^\[Transcription\]\s*/, "")
+        .trim();
 
-      const cleanedLines = all
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0)
-        .map((line) => line.replace(/^\[Transcription\]\s*/, "").trim());
+      if (!cleaned) return;
 
-      for (const line of cleanedLines) {
-        console.log("[0]: Dispatching subtitle:", line);
-        window.dispatchEvent(new CustomEvent("subtitle-update", { detail: line }));
-      }
-
-      if (cleanedLines.length > 0) {
-        setLines((prev) => {
-          const combined = [...prev, ...cleanedLines];
-          const deduped = combined.filter(
-            (line, i, arr) => i === 0 || line !== arr[i - 1]
-          );
-          return deduped.slice(-2);
-        });
-      }
+      setLines((prev) => {
+        const combined = [...prev, cleaned];
+        const deduped = combined.filter(
+          (line, i, arr) => i === 0 || line !== arr[i - 1]
+        );
+        return deduped.slice(-2); // keep last 2
+      });
     };
 
     if (window.electronAPI?.onTranscriptionOutput) {
+      console.log("[React] Subscribed to transcription-output");
       window.electronAPI.onTranscriptionOutput(handleText);
     }
-
-    return () => {};
   }, []);
 
   return (

@@ -21,10 +21,10 @@ export default function MainPage() {
       try {
         if (window.electronAPI) {
           // Launch the transcription tool first
-          const success = await window.electronAPI.launchAudioTool();
-          if (!success) {
-            throw new Error("Failed to start transcription tool");
-          }
+          // const success = await window.electronAPI.launchAudioTool();
+          // if (!success) {
+          //   throw new Error("Failed to start transcription tool");
+          // }
 
           // Then open the windows if needed
           if (subtitles || signLanguage) {
