@@ -3,20 +3,16 @@ import Store from "electron-store";
 import { spawn } from "node:child_process";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import * as fs from "fs";
+import { execFile } from "child_process";
 
-// Initialize store for persistent settings
+// Store for settings
 interface StoreType {
   darkMode: boolean;
 }
+const store = new Store<StoreType>({ defaults: { darkMode: true } });
 
-const store = new Store<StoreType>({
-  defaults: {
-    darkMode: true,
-  },
-});
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url)); // ESM-safe
-
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 process.env.APP_ROOT = path.join(__dirname, "..");
 
 export const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
@@ -28,78 +24,79 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   : RENDERER_DIST;
 
 let mainWindow: BrowserWindow | null;
+const allWindows = new Set<BrowserWindow>();
 
 function getIconPath() {
   return app.isPackaged
-    ? path.join(process.resourcesPath, "icon.ico") // outside ASAR
+    ? path.join(process.resourcesPath, "icon.ico")
     : path.join(__dirname, "../assets/icon/test.ico");
 }
 
-// Track all windows
-const allWindows = new Set<BrowserWindow>();
-
-// Helper function to safely add window to tracking
-const trackWindow = (win: BrowserWindow | null) => {
-  if (!win) return win;
+function trackWindow(win: BrowserWindow | null) {
+  if (!win) return;
   allWindows.add(win);
-  win.on("closed", () => {
-    allWindows.delete(win);
-  });
-  return win;
+  win.on("closed", () => allWindows.delete(win));
+}
+
+const originalError = console.error;
+console.error = function (...args) {
+  if (args.some(a => typeof a === "string" && a.includes("SetApplicationIsDaemon"))) {
+    return; // suppress this specific macOS sandbox warning
+  }
+  originalError.apply(console, args);
 };
 
+// ========================= MAIN WINDOW =========================
 function createWindow() {
-  const { width: screenWidth, height: screenHeight } =
-    screen.getPrimaryDisplay().workAreaSize;
-
-  // Get saved theme
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
   const darkMode = store.get("darkMode", true) as boolean;
 
   mainWindow = new BrowserWindow({
     icon: getIconPath(),
-    width: screenWidth,
-    height: screenHeight,
-    show: false, // Don't show the window until it's ready
+    width,
+    height,
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.mjs"),
       contextIsolation: true,
-      // leave sandbox off unless you really need it:
-      // sandbox: true,
     },
   });
 
-  // Maximize the window and show it when it's ready to be shown
-  mainWindow.once("ready-to-show", () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
+  mainWindow.once("ready-to-show", async () => {
+    if (!mainWindow?.isDestroyed()) {
       mainWindow.maximize();
       mainWindow.show();
+
+      try {
+        console.log("🚀 Auto-starting audio tool...");
+        const handler = (ipcMain as any)._invokeHandlers.get("launch-audio-tool");
+        if (handler) {
+          // ✅ pass a fake event with a sender
+          await handler({ sender: mainWindow.webContents });
+          console.log("Audio tool launched successfully.");
+        } else {
+          console.error("[0] [ERROR]: No handler found for launch-audio-tool");
+        }
+      } catch (err) {
+        console.error("[0] [ERROR]: Failed to auto-start audio tool:", err);
+      }
     }
   });
 
-  // Track window and set up theme handling
-  if (mainWindow) {
-    trackWindow(mainWindow);
-    mainWindow.on("closed", () => {
-      mainWindow = null;
-    });
 
-    // Send initial theme
-    mainWindow.webContents.on("did-finish-load", () => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send("theme-updated", darkMode);
-      }
-    });
-  }
+  trackWindow(mainWindow);
+  mainWindow.on("closed", () => (mainWindow = null));
+  mainWindow.webContents.on("did-finish-load", () => {
+    mainWindow?.webContents.send("theme-updated", darkMode);
+  });
 
-  if (VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(VITE_DEV_SERVER_URL);
-  } else {
-    // In production, we need to use a different path
+  if (VITE_DEV_SERVER_URL) mainWindow.loadURL(VITE_DEV_SERVER_URL);
+  else {
     const indexPath = path.join(RENDERER_DIST, "index.html");
     console.log("[0]: Loading production index.html from:", indexPath);
-    mainWindow.loadFile(indexPath).catch((err) => {
-      console.error("[0] [ERROR]: Failed to load index.html:", err);
-    });
+    mainWindow.loadFile(indexPath).catch((err) =>
+      console.error("[0] [ERROR]: Failed to load index.html:", err)
+    );
   }
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -109,232 +106,119 @@ function createWindow() {
 }
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-    mainWindow = null;
-  }
+  if (process.platform !== "darwin") app.quit();
 });
-
-app.on("will-quit", () => {
-  if (transcriptionProcess) {
-    transcriptionProcess.kill();
-    transcriptionProcess = null;
-  }
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
+app.commandLine.appendSwitch("disable-features", "SystemServices");
+app.whenReady().then(createWindow);
 
-// Broadcast theme to all windows
+// ========================= THEME HANDLING =========================
 const broadcastTheme = (darkMode: boolean) => {
-  allWindows.forEach((win) => {
-    if (!win.isDestroyed()) {
-      win.webContents.send("theme-updated", darkMode);
-    }
-  });
+  allWindows.forEach((win) => win.webContents.send("theme-updated", darkMode));
 };
-
-// Handle theme updates from renderer
-ipcMain.on("update-theme", (event, darkMode: boolean) => {
+ipcMain.on("update-theme", (_, darkMode: boolean) => {
   store.set("darkMode", darkMode);
   broadcastTheme(darkMode);
 });
 
-app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
+// ========================= SIGN & SUBTITLE WINDOWS =========================
+let signWindow: BrowserWindow | null = null;
+let subtitleWindow: BrowserWindow | null = null;
+
+function createAuxWindow(type: "sign" | "subtitle") {
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+  let options: Electron.BrowserWindowConstructorOptions;
+
+  if (type === "sign") {
+    options = {
+      parent: mainWindow,
+      icon: getIconPath(),
+      width: 400,
+      height: 300,
+      x: width - 410,
+      y: 0,
+      alwaysOnTop: true,
+      frame: false,
+      transparent: true,
+      webPreferences: { preload: path.join(__dirname, "preload.mjs"), contextIsolation: true },
+    };
+  } else {
+    options = {
+      parent: mainWindow,
+      icon: getIconPath(),
+      width: 1000,
+      height: 100,
+      x: (width - 1000) / 2,
+      y: height - 110,
+      alwaysOnTop: true,
+      frame: false,
+      transparent: true,
+      webPreferences: { preload: path.join(__dirname, "preload.mjs"), contextIsolation: true },
+    };
   }
-});
 
-app.whenReady().then(createWindow);
+  const win = new BrowserWindow(options);
+  const url = VITE_DEV_SERVER_URL
+    ? `http://localhost:5173/#/${type}`
+    : `file://${path.posix.join(...RENDERER_DIST.split(path.sep), "index.html")}#/${type}`;
+  win.loadURL(url);
+  win.setMenuBarVisibility(false);
+  trackWindow(win);
 
-let signWindow: BrowserWindow | null;
-
-function createSignWindow() {
-  const { width: screenWidth, height: screenHeight } =
-    screen.getPrimaryDisplay().workAreaSize;
-  const signWidth = 400;
-  const signHeight = 300;
-  signWindow = new BrowserWindow({
-    parent: mainWindow,
-    icon: getIconPath(),
-    width: signWidth,
-    height: signHeight,
-    y: 0,
-    x: screenWidth - signWidth - 10,
-    alwaysOnTop: true,
-    frame: false,
-    transparent: true,
-    webPreferences: {
-      preload: path.join(__dirname, "preload.mjs"),
-      contextIsolation: true,
-      // leave sandbox off unless you really need it:
-      // sandbox: true,
-    },
+  win.on("closed", () => {
+    if (type === "sign") signWindow = null;
+    else subtitleWindow = null;
   });
-  const signUrl = VITE_DEV_SERVER_URL
-    ? "http://localhost:5173/#/sign"
-    : `file://${path.posix.join(
-        ...RENDERER_DIST.split(path.sep),
-        "index.html"
-      )}#/sign`;
-  signWindow.loadURL(signUrl);
-  signWindow.setMenuBarVisibility(false);
-  if (signWindow) {
-    trackWindow(signWindow);
-    signWindow.on("closed", () => {
-      signWindow = null;
-    });
 
-    // Send initial theme
+  win.webContents.on("did-finish-load", () => {
     const darkMode = store.get("darkMode", true);
-    signWindow.webContents.on("did-finish-load", () => {
-      if (signWindow && !signWindow.isDestroyed()) {
-        signWindow.webContents.send("theme-updated", darkMode);
-      }
-    });
-  }
+    win.webContents.send("theme-updated", darkMode);
+  });
+
+  if (type === "sign") signWindow = win;
+  else subtitleWindow = win;
 }
 
-ipcMain.handle("toggle-sign-window", async (event, shouldShow: boolean) => {
-  if (shouldShow) {
-    if (!signWindow || signWindow.isDestroyed()) {
-      createSignWindow();
-      return true;
-    }
-  } else {
-    if (signWindow && !signWindow.isDestroyed()) {
-      signWindow.close();
-      signWindow = null;
-      return true;
-    }
-  }
-  return false;
+ipcMain.handle("toggle-sign-window", (_, show) => {
+  if (show && (!signWindow || signWindow.isDestroyed())) createAuxWindow("sign");
+  else signWindow?.close();
+  return true;
 });
 
-// Toggle subtitle window
-ipcMain.handle('toggle-subtitle-window', async (event, shouldShow: boolean) => {
-  if (shouldShow) {
-    if (!subtitleWindow || subtitleWindow.isDestroyed()) {
-      createSubtitleWindow();
-      return true;
-    }
-  } else {
-    if (subtitleWindow && !subtitleWindow.isDestroyed()) {
-      subtitleWindow.close();
-      subtitleWindow = null;
-      return true;
-    }
-  }
-  return false;
+ipcMain.handle("toggle-subtitle-window", (_, show) => {
+  if (show && (!subtitleWindow || subtitleWindow.isDestroyed())) createAuxWindow("subtitle");
+  else subtitleWindow?.close();
+  return true;
 });
 
-let subtitleWindow: BrowserWindow | null;
-
-function createSubtitleWindow() {
-  const { width: screenWidth, height: screenHeight } =
-    screen.getPrimaryDisplay().workAreaSize;
-  const subtitleWidth = 1000;
-  const subtitleHeight = 100;
-  subtitleWindow = new BrowserWindow({
-    parent: mainWindow,
-    icon: getIconPath(),
-    width: subtitleWidth,
-    height: subtitleHeight,
-    y: screenHeight - subtitleHeight - 10,
-    // center based on subtitle with and the screen width
-    x: (screenWidth - subtitleWidth) / 2,
-    alwaysOnTop: true,
-    frame: false,
-    transparent: true,
-    webPreferences: {
-      preload: path.join(__dirname, "preload.mjs"),
-      contextIsolation: true,
-      // leave sandbox off unless you really need it:
-      // sandbox: true,
-    },
-  });
-  const subtitleUrl = VITE_DEV_SERVER_URL
-    ? "http://localhost:5173/#/subtitle"
-    : `file://${path.posix.join(
-        ...RENDERER_DIST.split(path.sep),
-        "index.html"
-      )}#/subtitle`;
-  subtitleWindow.loadURL(subtitleUrl);
-  subtitleWindow.setMenuBarVisibility(false);
-  if (subtitleWindow) {
-    trackWindow(subtitleWindow);
-    subtitleWindow.on("closed", () => {
-      subtitleWindow = null;
-    });
-
-    // Send initial theme
-    const darkMode = store.get("darkMode", true);
-    subtitleWindow.webContents.on("did-finish-load", () => {
-      if (subtitleWindow && !subtitleWindow.isDestroyed()) {
-        subtitleWindow.webContents.send("theme-updated", darkMode);
-      }
-    });
-  }
-}
-
-ipcMain.on("toggle-subtitle-window", (event, arg) => {
-  if (arg) {
-    if (!subtitleWindow) {
-      createSubtitleWindow();
-    }
-  } else {
-    if (subtitleWindow) {
-      subtitleWindow.close();
-    }
-  }
+ipcMain.handle("openWindow", (_, type) => {
+  if (type === "sign" && !signWindow) createAuxWindow("sign");
+  else if (type === "subtitle" && !subtitleWindow) createAuxWindow("subtitle");
+  return true;
 });
 
-// Handle window opening based on type
-ipcMain.handle("openWindow", async (event, windowType: "subtitle" | "sign") => {
-  try {
-    if (windowType === "subtitle" && !subtitleWindow) {
-      createSubtitleWindow();
-      return true;
-    } else if (windowType === "sign" && !signWindow) {
-      createSignWindow();
-      return true;
-    }
-    return false;
-  } catch (error) {
-    console.error("[0] [ERROR]: Error opening ${windowType} window:", error);
-    throw new Error(`Failed to open ${windowType} window`);
-  }
+ipcMain.handle("closeAuxWindows", () => {
+  signWindow?.close();
+  subtitleWindow?.close();
+  signWindow = null;
+  subtitleWindow = null;
+  return true;
 });
 
-// Handle closing all auxiliary windows
-ipcMain.handle("closeAuxWindows", async () => {
-  try {
-    if (subtitleWindow) {
-      subtitleWindow.close();
-      subtitleWindow = null;
-    }
-    if (signWindow) {
-      signWindow.close();
-      signWindow = null;
-    }
-    return true;
-  } catch (error) {
-    console.error("[0] [ERROR]: Error closing auxiliary windows:", error);
-    throw new Error("Failed to close auxiliary windows");
-  }
-});
-
+// ========================= AUDIO TOOL LAUNCHER =========================
 let transcriptionProcess: ReturnType<typeof spawn> | null = null;
 let currentWebContents: Electron.WebContents | null = null;
 let isLaunching = false;
 let isToolRunning = false;
+let cachedDeviceList: string[] = [];
 
 ipcMain.handle("launch-audio-tool", async (event) => {
-  // If already running, just return success
   if (isToolRunning) {
     console.log("[0]: Transcription tool is already running.");
     return true;
   }
-
-  // Prevent multiple concurrent launches
   if (isLaunching) {
     console.log("[0]: Tool launch already in progress");
     return false;
@@ -342,101 +226,83 @@ ipcMain.handle("launch-audio-tool", async (event) => {
 
   isLaunching = true;
   isToolRunning = true;
-  
-  const exePath = app.isPackaged
+
+  const audioToolPathExe = app.isPackaged
     ? path.join(process.resourcesPath, "resources/AudioTranscriptionTool.exe")
     : path.join(__dirname, "../../resources/AudioTranscriptionTool.exe");
-  
-  console.log("[0]: Launching tool at:", exePath);
+
+  const audioToolPath = app.isPackaged
+    ? path.join(process.resourcesPath, "resources/AudioTranscriptionTool")
+    : path.join(__dirname, "../../resources/AudioTranscriptionTool");
+
+  let selectedToolPath: string;
+  if (process.platform === "win32" && fs.existsSync(audioToolPathExe)) {
+    selectedToolPath = audioToolPathExe;
+  } else if (fs.existsSync(audioToolPath)) {
+    selectedToolPath = audioToolPath;
+  } else {
+    selectedToolPath = audioToolPathExe;
+    console.warn("⚠️ No native binary found, falling back to .exe");
+  }
+
+  console.log("[0]: Launching tool at:", selectedToolPath);
 
   try {
-    const process = spawn(exePath, [], {
-      cwd: path.dirname(exePath),
-      stdio: ["pipe", "pipe", "pipe"],
-    });
+    const child = execFile(selectedToolPath, [], {
+      cwd: path.dirname(selectedToolPath),
+      stdio: ["pipe", "pipe", "ignore"],
+    }); 
 
-    // Store the process reference
-    transcriptionProcess = process;
+
+    transcriptionProcess = child;
     currentWebContents = event.sender;
     let buffer = "";
     let deviceIndexSent = false;
 
-    // Set up event handlers
-    const onError = (err) => {
-      console.error('[0] [ERROR]: Transcription tool error:', err);
-      cleanupProcess();
-    };
-
-    const onExit = (code, signal) => {
-      console.log(`[0]: Transcription tool exited with code ${code} and signal ${signal}`);
-      isToolRunning = false;
-      cleanupProcess();
-    };
-
     const onStdout = (data) => {
       const raw = data.toString();
-      const formatted = raw
-        .split(/\r?\n/)
-        .map((line) => `[1]: ${line}`)
-        .join("\n");
-      
+      const formatted = raw.split(/\r?\n/).filter(Boolean).join("\n");
       console.log(formatted);
       buffer += formatted;
-      
-      // Send output to all windows
+
+      // ✅ Parse device lines & cache them
+      const deviceLines = buffer.match(/\[\d+\] .+/g); // match all devices, not just `[Input]`
+      if (deviceLines) {
+        cachedDeviceList = deviceLines;
+        BrowserWindow.getAllWindows().forEach((win) => {
+          if (!win.isDestroyed()) win.webContents.send("device-list", cachedDeviceList);
+        });
+      }
+
+      // ✅ Forward transcription output to all windows
       BrowserWindow.getAllWindows().forEach((win) => {
         if (!win.isDestroyed()) {
           win.webContents.send("transcription-output", formatted);
         }
       });
+    };
 
-      // Handle device selection prompt
-      if (/Enter the index.*Press ENTER to stop/i.test(formatted) && !deviceIndexSent) {
-        deviceIndexSent = true;
-        console.log("[0]: Prompt detected. Sending index in 500ms...");
-        setTimeout(() => {
-          if (process.stdin.writable) {
-            process.stdin.write("12\n");
-          }
-        }, 500);
+    child.stdout.on("data", onStdout);
+
+    child.stderr.on("data", (data) => {
+      const msg = data.toString();
+      if (!msg.includes("SetApplicationIsDaemon")) {
+        console.error(`[TOOL-ERR]: ${msg}`);
       }
+    });
 
-      // Send device list to renderer
-      const deviceLines = buffer.match(/\[\d+\] .+\[Input\]/g);
-      if (deviceLines && currentWebContents) {
-        currentWebContents.send("device-list", deviceLines);
-      }
-    };
-
-    const onStderr = (err) => {
-      const raw = err.toString();
-      const formatted = raw
-        .split(/\r?\n/)
-        .map((line) => `[1] [ERROR]: ${line}`)
-        .join("\n");
-      console.error(formatted);
-    };
-
-    // Attach event listeners
-    process.on('error', onError);
-    process.on('exit', onExit);
-    process.stdout.on("data", onStdout);
-    process.stderr.on("data", onStderr);
-
-    // Return a cleanup function to remove listeners when the process ends
-    const cleanup = () => {
-      process.off('error', onError);
-      process.off('exit', onExit);
-      process.stdout.off("data", onStdout);
-      process.stderr.off("data", onStderr);
-    };
-
-    process.once('exit', cleanup);
-    process.once('error', cleanup);
+    child.on("error", (err) => {
+      console.error("[0] [ERROR]: Transcription tool error:", err);
+      cleanupProcess();
+    });
+    child.on("exit", (code, signal) => {
+      console.log(`[0]: Transcription tool exited with code ${code} signal ${signal}`);
+      cleanupProcess();
+    });
 
     return true;
-  } catch (error) {
-    console.error("[0] [ERROR]: Error launching transcription tool:", error);
+  } catch (err) {
+    console.error("[0] [ERROR]: Failed to start tool:", err);
     cleanupProcess();
     return false;
   } finally {
@@ -444,47 +310,41 @@ ipcMain.handle("launch-audio-tool", async (event) => {
   }
 });
 
-// Handle stop-audio-tool IPC call
-ipcMain.handle("stop-audio-tool", async () => {
+ipcMain.handle("stop-audio-tool", () => {
   console.log("[0]: Stopping transcription tool...");
   return cleanupProcess();
 });
 
-// Helper function to clean up process references
-function cleanupProcess() {
-  if (transcriptionProcess) {
-    try {
-      if (!transcriptionProcess.killed) {
-        transcriptionProcess.kill();
-      }
-      return true;
-    } catch (error) {
-      console.error("[0] [ERROR]: Error stopping transcription tool:", error);
-      return false;
-    } finally {
-      transcriptionProcess = null;
-      currentWebContents = null;
-      isToolRunning = false;
-    }
-  }
-  isToolRunning = false;
-  return true;
-}
-
-ipcMain.handle("select-audio-device", (event, index: number) => {
-  if (!transcriptionProcess || !transcriptionProcess.stdin || !transcriptionProcess.stdin.writable) {
-    console.error('[0] [ERROR]: No active transcription process or stdin not writable');
+ipcMain.handle("select-audio-device", (_, index: number) => {
+  if (!transcriptionProcess?.stdin?.writable) {
+    console.error("[0] [ERROR]: stdin not writable");
     return false;
   }
-  
   try {
     transcriptionProcess.stdin.write(`${index}\n`);
     return true;
-  } catch (error) {
-    console.error('[0] [ERROR]: Failed to write to transcription process:', error);
+  } catch (err) {
+    console.error("[0] [ERROR]: Failed to write index:", err);
     cleanupProcess();
     return false;
   }
 });
 
+ipcMain.on("request-device-list", (event) => {
+  console.log("[0]: Renderer requested device list → sending cached devices");
+  event.sender.send("device-list", cachedDeviceList);
+});
 
+function cleanupProcess() {
+  if (transcriptionProcess) {
+    try {
+      if (!transcriptionProcess.killed) transcriptionProcess.kill();
+    } catch (err) {
+      console.error("[0] [ERROR]: Error stopping tool:", err);
+    }
+    transcriptionProcess = null;
+  }
+  currentWebContents = null;
+  isToolRunning = false;
+  return true;
+}
