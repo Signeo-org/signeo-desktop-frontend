@@ -20,12 +20,22 @@ function SubtitlePage() {
 
       if (!cleaned) return;
 
+      // ✅ Ignore any segment that is only [something] or (something)
+      if (/^\s*(\[[^\]]*\]|\([^\)]*\))\s*$/i.test(cleaned)) {
+        console.log("[React] Ignored subtitle because it contains only bracketed/parenthesized content:", cleaned);
+        return;
+      }
+
+      // ✅ Also strip any bracketed or parenthesized parts within sentences
+      const stripped = cleaned.replace(/\[[^\]]*\]|\([^\)]*\)/g, "").trim();
+      if (!stripped) return; // if nothing remains, skip
+
       setLines((prev) => {
-        const combined = [...prev, cleaned];
+        const combined = [...prev, stripped];
         const deduped = combined.filter(
           (line, i, arr) => i === 0 || line !== arr[i - 1]
         );
-        return deduped.slice(-2); // keep last 2
+        return deduped.slice(-2); // keep last 2 lines
       });
     };
 

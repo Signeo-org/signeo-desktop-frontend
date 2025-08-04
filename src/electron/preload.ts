@@ -100,7 +100,7 @@ const api: ElectronAPI = {
   },
 
   getAudioDevices: () => {
-    ipcRenderer.invoke("launch-audio-tool"); // this re-triggers list
+    ipcRenderer.send("request-device-list"); // this re-triggers list
   },
 
   onAudioDeviceList: (callback) => {

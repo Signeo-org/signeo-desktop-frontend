@@ -1,52 +1,84 @@
-// MainPage.jsx (JS version – no TypeScript keywords)
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../App";
 import { useApp } from "../contexts/AppContext";
 import { useSettings } from "../contexts/SettingsContext";
 
 export default function MainPage() {
-  const { isPlaying, setIsPlaying, isInitializing, setIsInitializing } =
-    useApp();
+  const { isPlaying, setIsPlaying, isInitializing, setIsInitializing } = useApp();
   const navigate = useNavigate();
   const { darkMode, setDarkMode } = useTheme();
-  const { subtitles, signLanguage, language, setLanguage, availableLanguages } =
-    useSettings();
+  const { subtitles, signLanguage, language, setLanguage, availableLanguages } = useSettings();
 
+  // ✅ Audio Device States
+  const [devices, setDevices] = useState([]);
+  const [selectedDeviceIndex, setSelectedDeviceIndex] = useState("");
+  const [deviceLocked, setDeviceLocked] = useState(false);
+  const [deviceChosen, setDeviceChosen] = useState(false); // track if user selected a device
+
+  // ✅ Load saved device
+  useEffect(() => {
+    const savedIndex = localStorage.getItem("selectedDeviceIndex");
+    if (savedIndex) {
+      setSelectedDeviceIndex(savedIndex);
+      setDeviceChosen(true);
+    }
+
+    // ✅ Request device list on mount
+    if (window.electronAPI?.onAudioDeviceList) {
+      const handleDeviceList = (deviceList) => {
+        console.log("[MainPage] Audio devices received:", deviceList);
+        setDevices(deviceList);
+      };
+
+      window.electronAPI.onAudioDeviceList(handleDeviceList);
+      window.electronAPI.getAudioDevices();
+    }
+  }, []);
+
+  const handleDeviceChange = (e) => {
+    const index = parseInt(e.target.value);
+    setSelectedDeviceIndex(index);
+    setDeviceChosen(true);
+  };
+
+  // ✅ Play Button Logic
   const handlePlay = async () => {
+    // ❌ Prevent play if no device selected
+    if (!deviceChosen || selectedDeviceIndex === "") {
+      alert("⚠️ Please choose an audio input device before starting translation.");
+      return;
+    }
+
+    // ✅ If first launch → lock device & stdout to backend
+    if (!deviceLocked) {
+      setDeviceLocked(true);
+      localStorage.setItem("selectedDeviceIndex", String(selectedDeviceIndex));
+      console.log(`[MainPage] Device locked and chosen index ${selectedDeviceIndex}`);
+
+      if (window.electronAPI?.selectAudioDevice) {
+        window.electronAPI
+          .selectAudioDevice(Number(selectedDeviceIndex))
+          .then(() => console.log(`[MainPage] Device index ${selectedDeviceIndex} sent to tool.`))
+          .catch((err) => console.error("[MainPage] Failed to send device index:", err));
+      }
+    }
+
     if (!isPlaying) {
       // Start translation
       setIsInitializing(true);
-
       try {
         if (window.electronAPI) {
-          // Launch the transcription tool first
-          // const success = await window.electronAPI.launchAudioTool();
-          // if (!success) {
-          //   throw new Error("Failed to start transcription tool");
-          // }
-
-          // Then open the windows if needed
-          if (subtitles || signLanguage) {
-            await window.electronAPI.closeAuxWindows();
-
-            if (subtitles) {
-              await window.electronAPI.openWindow("subtitle");
-            }
-            if (signLanguage) {
-              await window.electronAPI.openWindow("sign");
-            }
-          }
-
+          await window.electronAPI.closeAuxWindows();
+          if (subtitles) await window.electronAPI.openWindow("subtitle");
+          if (signLanguage) await window.electronAPI.openWindow("sign");
           setIsPlaying(true);
         } else {
-          alert("Auxiliary windows unavailable outside the Electron shell.");
+          alert("Auxiliary windows unavailable outside Electron.");
         }
       } catch (error) {
         console.error("[0] [ERROR]: Error starting translation:", error);
-        alert(
-          "Failed to start translation. Please check the console for details."
-        );
+        alert("Failed to start translation. Check console for details.");
         setIsPlaying(false);
       } finally {
         setIsInitializing(false);
@@ -55,9 +87,8 @@ export default function MainPage() {
       // Stop translation
       try {
         if (window.electronAPI) {
-          // Close the transcription tool
           await window.electronAPI.closeAuxWindows();
-          await window.electronAPI.stopAudioTool();
+          //await window.electronAPI.stopAudioTool();
         }
       } catch (error) {
         console.error("[0] [ERROR]: Error stopping translation:", error);
@@ -69,7 +100,6 @@ export default function MainPage() {
 
   return (
     <div className="flex flex-col items-center justify-center h-screen px-4 transition duration-300">
-      {/* Card ------------------------------------------------------------ */}
       <div className="w-full max-w-md p-8 pt-12 rounded-2xl shadow-2xl bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-800 relative space-y-6">
         {/* Dark-mode toggle */}
         <div className="absolute top-4 right-4">
@@ -80,14 +110,36 @@ export default function MainPage() {
             {darkMode ? "🌞 Light Mode" : "🌙 Dark Mode"}
           </button>
         </div>
+
         <h1 className="text-4xl font-bold text-center">Audio Interpreter</h1>
 
-        {/* Language selector ------------------------------------------- */}
+        {/* ✅ Audio Device Dropdown */}
         <div className="space-y-2">
-          <label
-            htmlFor="language"
-            className="text-sm text-gray-600 dark:text-gray-400"
+          <label className="text-sm text-gray-600 dark:text-gray-400">Audio Input</label>
+          <select
+            value={selectedDeviceIndex}
+            onChange={handleDeviceChange}
+            disabled={deviceLocked} // ✅ lock after first use
+            className={`w-full px-3 py-2 rounded-lg border ${
+              deviceLocked
+                ? "bg-gray-300 dark:bg-gray-700 cursor-not-allowed"
+                : "bg-white dark:bg-gray-800 dark:border-gray-700"
+            }`}
           >
+            <option disabled value="">
+              {deviceLocked ? "Device Locked" : "Select a device"}
+            </option>
+            {devices.map((device, index) => (
+              <option key={index} value={index}>
+                {device}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Language selector */}
+        <div className="space-y-2">
+          <label htmlFor="language" className="text-sm text-gray-600 dark:text-gray-400">
             Choose Language
           </label>
           <select
@@ -104,16 +156,18 @@ export default function MainPage() {
           </select>
         </div>
 
-        {/* Start button -------------------------------------------------- */}
+        {/* Start Button */}
         <button
           onClick={handlePlay}
-          disabled={isInitializing}
+          disabled={isInitializing || !deviceChosen}
           className={`w-full px-4 py-2 text-lg font-medium rounded-lg text-white transition-all transform flex items-center justify-center gap-2 ${
             isPlaying
               ? "bg-red-600 hover:bg-red-700"
               : isInitializing
               ? "bg-blue-500 cursor-not-allowed"
-              : "bg-blue-600 hover:bg-blue-700"
+              : deviceChosen
+              ? "bg-blue-600 hover:bg-blue-700"
+              : "bg-gray-400 cursor-not-allowed"
           }`}
         >
           {isInitializing ? (
@@ -124,14 +178,7 @@ export default function MainPage() {
                 fill="none"
                 viewBox="0 0 24 24"
               >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                ></circle>
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path
                   className="opacity-75"
                   fill="currentColor"
@@ -147,7 +194,7 @@ export default function MainPage() {
           )}
         </button>
 
-        {/* Settings link ------------------------------------------------- */}
+        {/* Settings Button */}
         <button
           onClick={() => navigate("/settings")}
           className="text-sm text-gray-500 dark:text-gray-400 hover:text-blue-500 w-full text-center"

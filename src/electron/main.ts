@@ -212,6 +212,7 @@ let transcriptionProcess: ReturnType<typeof spawn> | null = null;
 let currentWebContents: Electron.WebContents | null = null;
 let isLaunching = false;
 let isToolRunning = false;
+let cachedDeviceList: string[] = [];
 
 ipcMain.handle("launch-audio-tool", async (event) => {
   if (isToolRunning) {
@@ -248,9 +249,9 @@ ipcMain.handle("launch-audio-tool", async (event) => {
 
   try {
     const child = execFile(selectedToolPath, [], {
-    cwd: path.dirname(selectedToolPath),
-    stdio: ["pipe", "pipe", "ignore"],
-  }); 
+      cwd: path.dirname(selectedToolPath),
+      stdio: ["pipe", "pipe", "ignore"],
+    }); 
 
 
     transcriptionProcess = child;
@@ -258,41 +259,27 @@ ipcMain.handle("launch-audio-tool", async (event) => {
     let buffer = "";
     let deviceIndexSent = false;
 
-
     const onStdout = (data) => {
       const raw = data.toString();
-      const formatted = raw
-        .split(/\r?\n/)
-        .filter((line) => line.trim() !== "") // ✅ skip empty lines
-        .map((line) => `${line}`)
-        .join("\n");
-      
+      const formatted = raw.split(/\r?\n/).filter(Boolean).join("\n");
       console.log(formatted);
       buffer += formatted;
-      
-      // Send output to all windows
+
+      // ✅ Parse device lines & cache them
+      const deviceLines = buffer.match(/\[\d+\] .+/g); // match all devices, not just `[Input]`
+      if (deviceLines) {
+        cachedDeviceList = deviceLines;
+        BrowserWindow.getAllWindows().forEach((win) => {
+          if (!win.isDestroyed()) win.webContents.send("device-list", cachedDeviceList);
+        });
+      }
+
+      // ✅ Forward transcription output to all windows
       BrowserWindow.getAllWindows().forEach((win) => {
         if (!win.isDestroyed()) {
           win.webContents.send("transcription-output", formatted);
         }
       });
-
-      //Handle device selection prompt
-      if (/Enter the index.*Press ENTER to stop/i.test(formatted) && !deviceIndexSent) {
-        deviceIndexSent = true;
-        console.log("[0]: Prompt detected. Sending index in 500ms...");
-        setTimeout(() => {
-          if (child.stdin.writable) {
-            child.stdin.write("0\n");
-          }
-        }, 500);
-      }
-
-      // Send device list to renderer
-      const deviceLines = buffer.match(/\[\d+\] .+\[Input\]/g);
-      if (deviceLines && currentWebContents) {
-        currentWebContents.send("device-list", deviceLines);
-      }
     };
 
     child.stdout.on("data", onStdout);
@@ -341,6 +328,11 @@ ipcMain.handle("select-audio-device", (_, index: number) => {
     cleanupProcess();
     return false;
   }
+});
+
+ipcMain.on("request-device-list", (event) => {
+  console.log("[0]: Renderer requested device list → sending cached devices");
+  event.sender.send("device-list", cachedDeviceList);
 });
 
 function cleanupProcess() {
