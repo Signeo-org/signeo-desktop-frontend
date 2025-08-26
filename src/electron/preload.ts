@@ -29,6 +29,7 @@ export interface ElectronAPI {
   offAudioDeviceList: (callback: (devices: string[]) => void) => void;
   toggleSignWindow: (show: boolean) => Promise<boolean>;
   toggleSubtitleWindow: (show: boolean) => Promise<boolean>;
+  reportSubtitleSize: (size: { width: number; height: number }) => void;
 
   /* tiny utility that shows the effective build mode */
   env: { NODE_ENV: string | undefined };
@@ -52,6 +53,8 @@ const api: ElectronAPI = {
   once: (ch, fn) => ipcRenderer.once(ch, fn),
   invoke: (ch, ...a) => ipcRenderer.invoke(ch, ...a),
 
+  reportSubtitleSize: (size) => ipcRenderer.send("subtitle-size", size),
+  
   openAuxWindows: () => {
     ipcRenderer.send("toggle-sign-window", true);
     ipcRenderer.send("toggle-subtitle-window", true);

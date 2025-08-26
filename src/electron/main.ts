@@ -12,6 +12,7 @@ interface StoreType {
 }
 const store = new Store<StoreType>({ defaults: { darkMode: true } });
 
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 process.env.APP_ROOT = path.join(__dirname, "..");
 
@@ -29,7 +30,7 @@ const allWindows = new Set<BrowserWindow>();
 function getIconPath() {
   return app.isPackaged
     ? path.join(process.resourcesPath, "icon.ico")
-    : path.join(__dirname, "../assets/icon/test.ico");
+    : path.join(__dirname, "../assets/Signeo.jpg");
 }
 
 function trackWindow(win: BrowserWindow | null) {
@@ -133,33 +134,52 @@ function createAuxWindow(type: "sign" | "subtitle") {
 
   if (type === "sign") {
     options = {
-      parent: mainWindow,
       icon: getIconPath(),
       width: 400,
       height: 300,
       x: width - 410,
       y: 0,
-      alwaysOnTop: true,
       frame: false,
       transparent: true,
+      alwaysOnTop: true,
+      // 🟢 macOS always-on-top across apps
+      titleBarStyle: "customButtonsOnHover",
+      hasShadow: false,
       webPreferences: { preload: path.join(__dirname, "preload.mjs"), contextIsolation: true },
     };
   } else {
     options = {
-      parent: mainWindow,
       icon: getIconPath(),
-      width: 1000,
-      height: 100,
-      x: (width - 1000) / 2,
-      y: height - 110,
-      alwaysOnTop: true,
+      x: 0,
+      y: 0,
       frame: false,
       transparent: true,
+      alwaysOnTop: true,
+      // 🟢 macOS always-on-top across apps
+      titleBarStyle: "customButtonsOnHover",
+      hasShadow: false,
+      focusable: false,
       webPreferences: { preload: path.join(__dirname, "preload.mjs"), contextIsolation: true },
     };
   }
 
   const win = new BrowserWindow(options);
+
+  // ✅ macOS-specific behavior: stay on top of ALL apps 
+  if (process.platform === "darwin") { 
+    win.setAlwaysOnTop(true, "screen-saver"); // highest floating level 
+    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); 
+    win.setFullScreenable(false); 
+  }
+
+  // ✅ Windows/Linux: force topmost
+  if (process.platform !== "darwin") { 
+    win.setAlwaysOnTop(true, "pop-up-menu");
+  }
+
+  // Make subtitle window click-through
+  win.setIgnoreMouseEvents(true, { forward: true });
+
   const url = VITE_DEV_SERVER_URL
     ? `http://localhost:5173/#/${type}`
     : `file://${path.posix.join(...RENDERER_DIST.split(path.sep), "index.html")}#/${type}`;
@@ -177,6 +197,19 @@ function createAuxWindow(type: "sign" | "subtitle") {
     win.webContents.send("theme-updated", darkMode);
   });
 
+  if (type == "subtitle") {
+    app.whenReady().then(() => {
+      const displays = screen.getAllDisplays()
+      const externalDisplay = displays.find((display) => {
+        return display.bounds.x !== 0 || display.bounds.y !== 0
+      })
+
+      if (externalDisplay) {
+        win.setPosition(externalDisplay.bounds.x + 50, externalDisplay.bounds.y)
+      }
+    })
+  }
+
   if (type === "sign") signWindow = win;
   else subtitleWindow = win;
 }
@@ -192,6 +225,18 @@ ipcMain.handle("toggle-subtitle-window", (_, show) => {
   else subtitleWindow?.close();
   return true;
 });
+
+ipcMain.on("subtitle-size", (_, bounds: { width: number; height: number }) => {
+  if (subtitleWindow && !subtitleWindow.isDestroyed()) {
+    const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
+
+    const x = Math.max(0, Math.round((screenWidth - bounds.width) / 2));
+    const y = screenHeight - bounds.height - 20; // 20px margin from bottom
+
+    subtitleWindow.setBounds({ x, y, width: bounds.width, height: bounds.height });
+  }
+});
+
 
 ipcMain.handle("openWindow", (_, type) => {
   if (type === "sign" && !signWindow) createAuxWindow("sign");

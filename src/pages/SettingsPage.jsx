@@ -30,7 +30,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen px-4 transition">
+    <div className="flex flex-col items-center justify-center h-screen px-4 transition bg-white dark:bg-black">
       <div className="max-w-md w-full p-8 rounded-2xl shadow-2xl bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-800 space-y-6 relative">
         {/* Dark Mode Toggle */}
         <div className="absolute top-4 right-4">

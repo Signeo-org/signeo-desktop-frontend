@@ -5,7 +5,7 @@ import { useApp } from "../contexts/AppContext";
 import { useSettings } from "../contexts/SettingsContext";
 
 export default function MainPage() {
-  const { isPlaying, setIsPlaying, isInitializing, setIsInitializing } = useApp();
+  const { isPlaying, setIsPlaying, isInitializing, setIsInitializing, isAudioToolRunning, setIsAudioToolRunning } = useApp();
   const navigate = useNavigate();
   const { darkMode, setDarkMode } = useTheme();
   const { subtitles, signLanguage, language, setLanguage, availableLanguages } = useSettings();
@@ -51,7 +51,7 @@ export default function MainPage() {
     }
 
     // ✅ If first launch → lock device & stdout to backend
-    if (!deviceLocked) {
+    if (!deviceLocked || !isAudioToolRunning) {
       setDeviceLocked(true);
       localStorage.setItem("selectedDeviceIndex", String(selectedDeviceIndex));
       console.log(`[MainPage] Device locked and chosen index ${selectedDeviceIndex}`);
@@ -62,6 +62,7 @@ export default function MainPage() {
           .then(() => console.log(`[MainPage] Device index ${selectedDeviceIndex} sent to tool.`))
           .catch((err) => console.error("[MainPage] Failed to send device index:", err));
       }
+      setIsAudioToolRunning(true);
     }
 
     if (!isPlaying) {
@@ -69,7 +70,6 @@ export default function MainPage() {
       setIsInitializing(true);
       try {
         if (window.electronAPI) {
-          await window.electronAPI.closeAuxWindows();
           if (subtitles) await window.electronAPI.openWindow("subtitle");
           if (signLanguage) await window.electronAPI.openWindow("sign");
           setIsPlaying(true);
@@ -99,7 +99,7 @@ export default function MainPage() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen px-4 transition duration-300">
+    <div className="flex flex-col items-center justify-center h-screen px-4 transition duration-300 bg-white dark:bg-black">
       <div className="w-full max-w-md p-8 pt-12 rounded-2xl shadow-2xl bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-800 relative space-y-6">
         {/* Dark-mode toggle */}
         <div className="absolute top-4 right-4">

@@ -6,9 +6,9 @@ const SettingsContext = createContext();
 
 const AVAILABLE_LANGUAGES = [
   { code: 'en-US', name: 'English' },
-  { code: 'es-ES', name: 'Spanish' },
-  { code: 'fr-FR', name: 'French' },
-  { code: 'de-DE', name: 'German' }
+  { code: 'es-ES', name: 'Spanish (Work in Progress)' },
+  { code: 'fr-FR', name: 'French (Work in Progress)' },
+  { code: 'de-DE', name: 'German (Work in Progress)' }
 ];
 
 export const SettingsProvider = ({ children }) => {

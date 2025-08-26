@@ -150,11 +150,7 @@ function SignPage() {
 
   return (
     <div
-      className={`flex flex-col items-center justify-center h-screen ${
-        darkMode
-          ? "bg-darkTheme-dark1 text-blue-100"
-          : "bg-whiteTheme-light1 text-whiteTheme-accent1"
-      }`}
+      className={`flex flex-col items-center justify-center h-screen bg-black text-white`}
     >
       <video
         ref={videoRef}
