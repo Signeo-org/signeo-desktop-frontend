@@ -109,12 +109,14 @@ function SignPage() {
 
           const handleEnded = () => {
             cleanup();
+            setCurrentWord(""); // hide text when video finishes
             resolve();
           };
 
           const handleError = () => {
             console.warn(`[0] [WARNING]: Could not load video for: ${word}`);
             cleanup();
+            setCurrentWord(""); // ensure text is hidden on error too
             resolve();
           };
 
@@ -124,8 +126,16 @@ function SignPage() {
             video.play().catch((err) => {
               console.error("[0] [ERROR]: Playback error:", err);
               cleanup();
+              setCurrentWord("");
               resolve();
             });
+
+            // Show text exactly when video starts
+            setCurrentWord(
+              repeatCountRef.current > 1
+                ? `${word} (${repeatCountRef.current})`
+                : word
+            );
           };
 
           video.addEventListener("ended", handleEnded);

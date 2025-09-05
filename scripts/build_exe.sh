@@ -35,4 +35,4 @@ pnpm install
 # 3) Start the development server
 # ---------------------------------------------------
 echo "Starting frontend..."
-pnpm dev
+pnpm build
