@@ -60,6 +60,7 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, "preload.mjs"),
       contextIsolation: true,
+      webSecurity: false
     },
   });
 
@@ -145,7 +146,11 @@ function createAuxWindow(type: "sign" | "subtitle") {
       // 🟢 macOS always-on-top across apps
       titleBarStyle: "customButtonsOnHover",
       hasShadow: false,
-      webPreferences: { preload: path.join(__dirname, "preload.mjs"), contextIsolation: true },
+      webPreferences: { 
+        preload: path.join(__dirname, "preload.mjs"), 
+        contextIsolation: true,
+        webSecurity: false
+      },
     };
   } else {
     options = {
@@ -159,7 +164,11 @@ function createAuxWindow(type: "sign" | "subtitle") {
       titleBarStyle: "customButtonsOnHover",
       hasShadow: false,
       focusable: false,
-      webPreferences: { preload: path.join(__dirname, "preload.mjs"), contextIsolation: true },
+      webPreferences: { 
+        preload: path.join(__dirname, "preload.mjs"), 
+        contextIsolation: true,
+        webSecurity: false
+      },
     };
   }
 
@@ -393,3 +402,15 @@ function cleanupProcess() {
   isToolRunning = false;
   return true;
 }
+
+// ========================= SIGN VIDEO PATH RESOLVER =========================
+ipcMain.handle("resolve-sign-video-path", (_event, word) => {
+  let videoPath;
+  if (app.isPackaged) {
+    videoPath = path.join(process.resourcesPath, "/resources/SL", word, "shortest.mp4");
+  } else {
+    videoPath = path.join(__dirname, "../../resources/SL", word, "shortest.mp4");
+  }
+  // Return as file:// URL for renderer usage
+  return `file://${videoPath.replace(/\\/g, '/')}`;
+});

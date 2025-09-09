@@ -44,16 +44,18 @@ function SignPage() {
         lastTranscriptRef.current = cleanedText;
         lastIndexRef.current = words.length;
 
-        const newEntries = newWords.map((word) => ({
-          word,
-          path: `../../resources/SL/${word}/shortest.mp4`,
-        }));
-
-        wordQueueRef.current.push(...newEntries);
-
-        if (!isPlayingRef.current) {
-          startPlaybackLoop();
-        }
+        // Build newEntries with async getSignVideoPath
+        Promise.all(
+          newWords.map(async (word) => ({
+            word,
+            path: await window.electronAPI.getSignVideoPath(word),
+          }))
+        ).then((entries) => {
+          wordQueueRef.current.push(...entries);
+          if (!isPlayingRef.current) {
+            startPlaybackLoop();
+          }
+        });
       });
     }
 
