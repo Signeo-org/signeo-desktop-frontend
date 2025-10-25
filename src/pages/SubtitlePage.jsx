@@ -1,12 +1,9 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useSettings } from "../contexts/SettingsContext";
+import { useTheme } from "../App";
 
 function SubtitlePage() {
-  const [darkMode, setDarkMode] = useState(() => {
-    const savedDarkMode = localStorage.getItem("darkMode");
-    return savedDarkMode ? JSON.parse(savedDarkMode) : false;
-  });
-
+  const { darkMode } = useTheme();
   const [lines, setLines] = useState([]);
   const measureRef = useRef(null);
 

@@ -9,6 +9,7 @@ export const AppProvider = ({ children }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
   const [isAudioToolRunning, setIsAudioToolRunning] = useState(false);
+  const [isFirstExecution, setIsFirstExecution] = useState(true);
 
   const value = {
     isPlaying,
@@ -17,6 +18,8 @@ export const AppProvider = ({ children }) => {
     setIsInitializing,
     isAudioToolRunning,
     setIsAudioToolRunning,
+    isFirstExecution,
+    setIsFirstExecution,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

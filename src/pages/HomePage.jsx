@@ -5,7 +5,7 @@ import { useApp } from "../contexts/AppContext";
 import { useSettings } from "../contexts/SettingsContext";
 
 export default function MainPage() {
-  const { isPlaying, setIsPlaying, isInitializing, setIsInitializing, isAudioToolRunning, setIsAudioToolRunning } = useApp();
+  const { isPlaying, setIsPlaying, isInitializing, setIsInitializing, isAudioToolRunning, setIsAudioToolRunning, isFirstExecution, setIsFirstExecution } = useApp();
   const navigate = useNavigate();
   const { darkMode, setDarkMode } = useTheme();
   const { subtitles, signLanguage, language, setLanguage, availableLanguages } = useSettings();
@@ -51,8 +51,9 @@ export default function MainPage() {
     }
 
     // ✅ If first launch → lock device & stdout to backend
-    if (!deviceLocked || !isAudioToolRunning) {
+    if (isFirstExecution && (!deviceLocked || !isAudioToolRunning)) {
       setDeviceLocked(true);
+      setIsFirstExecution(false); // Mark as not first execution anymore
       localStorage.setItem("selectedDeviceIndex", String(selectedDeviceIndex));
       console.log(`[MainPage] Device locked and chosen index ${selectedDeviceIndex}`);
 
