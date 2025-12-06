@@ -4,18 +4,18 @@ import { useTheme } from "../App";
 
 function SubtitlePage() {
   const { darkMode } = useTheme();
+  const { fontSize } = useSettings();
   const [lines, setLines] = useState([]);
   const measureRef = useRef(null);
 
-  // ✅ get fontSize from settings
-  const { fontSize } = useSettings();
-
   // Map fontSize setting to Tailwind classes (or inline style)
-  const fontSizeClass = {
-    Small: "text-xl",
-    Medium: "text-3xl",
-    Large: "text-5xl",
-  }[fontSize] || "text-3xl";
+  const fontSizeClass = React.useMemo(() => {
+    return {
+      Small: "text-xl",
+      Medium: "text-3xl",
+      Large: "text-5xl",
+    }[fontSize] || "text-3xl";
+  }, [fontSize]);
 
   useEffect(() => {
     const handleText = (raw) => {

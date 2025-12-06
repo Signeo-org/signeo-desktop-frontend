@@ -15,6 +15,8 @@ function SignPage() {
   const lastShownWordRef = useRef(""); // last word that successfully played
   const repeatCountRef = useRef(1);    // count for repeated words after skips
 
+  const preloadedRef = useRef([]);
+
   useEffect(() => {
     if (window.electronAPI?.onTranscriptionOutput) {
       console.log("[0]: onTranscriptionOutput subscribed");
@@ -52,6 +54,7 @@ function SignPage() {
           }))
         ).then((entries) => {
           wordQueueRef.current.push(...entries);
+          maintainPreloadBuffer();
           if (!isPlayingRef.current) {
             startPlaybackLoop();
           }
@@ -73,90 +76,102 @@ function SignPage() {
     return () => window.removeEventListener("beforeunload", handleUnload);
   }, []);
 
+  const loadNextVideo = async () => {
+    if (wordQueueRef.current.length === 0) return;
+
+    const { word, path } = wordQueueRef.current[0];
+    const ok = await checkVideoExists(path);
+    if (!ok) {
+      wordQueueRef.current.shift();
+      return;
+    }
+
+    const el = document.createElement("video");
+    el.preload = "auto";
+    el.src = path;
+    el.load();
+
+    await new Promise((resolve) => {
+      const can = () => {
+        el.removeEventListener("canplay", can);
+        resolve();
+      };
+      el.addEventListener("canplay", can);
+    });
+
+    preloadedRef.current.push({ word, path, element: el });
+    wordQueueRef.current.shift();
+  };
+
+  const maintainPreloadBuffer = async () => {
+    while (preloadedRef.current.length < 10 && wordQueueRef.current.length > 0) {
+      await loadNextVideo();
+    }
+  };
+
+
   const startPlaybackLoop = async () => {
     isPlayingRef.current = true;
 
-    while (wordQueueRef.current.length > 0) {
-      const { word, path } = wordQueueRef.current[0];
-
-      const videoExists = await checkVideoExists(path);
-
-      if (videoExists) {
-        // Handle repeated word after skipped words
-        if (word === lastShownWordRef.current) {
-          repeatCountRef.current += 1;
-        } else {
-          repeatCountRef.current = 1;
-        }
-
-        lastShownWordRef.current = word;
-
-        setCurrentWord(
-          repeatCountRef.current > 1
-            ? `${word} (${repeatCountRef.current})`
-            : word
-        );
-
-        console.log("[0]: Playing:", word, "→", path);
-
-        await new Promise((resolve) => {
-          const video = videoRef.current;
-          if (!video) return resolve();
-
-          const cleanup = () => {
-            video.removeEventListener("ended", handleEnded);
-            video.removeEventListener("error", handleError);
-            video.removeEventListener("canplay", handleCanPlay);
-          };
-
-          const handleEnded = () => {
-            cleanup();
-            setCurrentWord(""); // hide text when video finishes
-            resolve();
-          };
-
-          const handleError = () => {
-            console.warn(`[0] [WARNING]: Could not load video for: ${word}`);
-            cleanup();
-            setCurrentWord(""); // ensure text is hidden on error too
-            resolve();
-          };
-
-          const handleCanPlay = () => {
-            video.removeEventListener("canplay", handleCanPlay);
-            video.playbackRate = 2;
-            video.play().catch((err) => {
-              console.error("[0] [ERROR]: Playback error:", err);
-              cleanup();
-              setCurrentWord("");
-              resolve();
-            });
-
-            // Show text exactly when video starts
-            setCurrentWord(
-              repeatCountRef.current > 1
-                ? `${word} (${repeatCountRef.current})`
-                : word
-            );
-          };
-
-          video.addEventListener("ended", handleEnded);
-          video.addEventListener("error", handleError);
-          video.addEventListener("canplay", handleCanPlay);
-          video.src = path;
-          video.load();
-        });
-      } else {
-        console.warn(`[0] [WARNING]: Skipping missing/invalid video for: ${word}`);
-        // Do not reset lastShownWordRef so repeated words after skips are counted
+    while (true) {
+      if (preloadedRef.current.length === 0) {
+        if (wordQueueRef.current.length === 0) break;
+        await maintainPreloadBuffer();
+        if (preloadedRef.current.length === 0) break;
       }
 
-      wordQueueRef.current.shift();
+      const { word, path, element } = preloadedRef.current.shift();
+
+      if (word === lastShownWordRef.current) repeatCountRef.current += 1;
+      else repeatCountRef.current = 1;
+      lastShownWordRef.current = word;
+
+      setCurrentWord(
+        repeatCountRef.current > 1
+          ? `${word} (${repeatCountRef.current})`
+          : word
+      );
+
+      await new Promise((resolve) => {
+        const video = videoRef.current;
+        if (!video) return resolve();
+
+        const clean = () => {
+          video.removeEventListener("ended", end);
+          video.removeEventListener("error", err);
+        };
+
+        const end = () => {
+          clean();
+          setCurrentWord("");
+          resolve();
+        };
+
+        const err = () => {
+          clean();
+          setCurrentWord("");
+          resolve();
+        };
+
+        video.addEventListener("ended", end);
+        video.addEventListener("error", err);
+
+        video.src = element.src;
+        video.playbackRate = 2;
+        video.play().catch(() => {
+          clean();
+          setCurrentWord("");
+          resolve();
+        });
+      });
+
+      await maintainPreloadBuffer();
     }
 
     setCurrentWord("");
     isPlayingRef.current = false;
   };
+
 
   const checkVideoExists = async (path) => {
     try {
