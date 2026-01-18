@@ -7,8 +7,15 @@ function SignPage() {
 
   const videoRef = useRef(null);
   const wordQueueRef = useRef([]);
-  const playedWordsRef = useRef(new Set());
   const isPlayingRef = useRef(false);
+
+  const lastIndexRef = useRef(0);
+  const lastTranscriptRef = useRef("");
+
+  const lastShownWordRef = useRef(""); // last word that successfully played
+  const repeatCountRef = useRef(1);    // count for repeated words after skips
+
+  const preloadedRef = useRef([]);
 
   useEffect(() => {
     if (window.electronAPI?.onTranscriptionOutput) {
@@ -17,89 +24,154 @@ function SignPage() {
       window.electronAPI.onTranscriptionOutput((text) => {
         console.log("[0]: Received transcription:", text);
 
-        const words = text
-          .replace(/\[.*?\]/g, "")
-          .toLowerCase()
-          .replace(/[^\w\s]/g, "")
-          .split(/\s+/)
-          .filter(Boolean);
+        // Ignore segments that are only brackets/parentheses
+        if (/^\s*(\[[^\]]*\]|\([^\)]*\))\s*$/i.test(text.trim())) {
+          console.log("[0]: Ignored segment:", text);
+          return;
+        }
 
+        const cleanedText = text.replace(/\[.*?\]/g, "").toLowerCase();
+        const words = cleanedText.replace(/[^\w\s]/g, "").split(/\s+/).filter(Boolean);
         if (words.length === 0) return;
 
-        const newEntries = words
-          .filter((word) => !playedWordsRef.current.has(word))
-          .map((word) => ({
-            word,
-            path: `../../resources/SL/${word}/shortest.mp4`,
-          }));
-
-        wordQueueRef.current.push(...newEntries);
-
-        if (!isPlayingRef.current) {
-          startPlaybackLoop();
+        let newWords;
+        if (!cleanedText.startsWith(lastTranscriptRef.current)) {
+          console.log("[0]: Transcript reset detected → adding new sentence");
+          newWords = words;
+          lastIndexRef.current = 0;
+        } else {
+          newWords = words.slice(lastIndexRef.current);
         }
+
+        lastTranscriptRef.current = cleanedText;
+        lastIndexRef.current = words.length;
+
+        // Build newEntries with async getSignVideoPath
+        Promise.all(
+          newWords.map(async (word) => ({
+            word,
+            path: await window.electronAPI.getSignVideoPath(word),
+          }))
+        ).then((entries) => {
+          wordQueueRef.current.push(...entries);
+          maintainPreloadBuffer();
+          if (!isPlayingRef.current) {
+            startPlaybackLoop();
+          }
+        });
       });
     }
+
+    const handleUnload = () => {
+      console.log("[0]: Window closing → clearing word queue and resetting state");
+      wordQueueRef.current = [];
+      isPlayingRef.current = false;
+      lastIndexRef.current = 0;
+      lastTranscriptRef.current = "";
+      lastShownWordRef.current = "";
+      repeatCountRef.current = 1;
+    };
+
+    window.addEventListener("beforeunload", handleUnload);
+    return () => window.removeEventListener("beforeunload", handleUnload);
   }, []);
+
+  const loadNextVideo = async () => {
+    if (wordQueueRef.current.length === 0) return;
+
+    const { word, path } = wordQueueRef.current[0];
+    const ok = await checkVideoExists(path);
+    if (!ok) {
+      wordQueueRef.current.shift();
+      return;
+    }
+
+    const el = document.createElement("video");
+    el.preload = "auto";
+    el.src = path;
+    el.load();
+
+    await new Promise((resolve) => {
+      const can = () => {
+        el.removeEventListener("canplay", can);
+        resolve();
+      };
+      el.addEventListener("canplay", can);
+    });
+
+    preloadedRef.current.push({ word, path, element: el });
+    wordQueueRef.current.shift();
+  };
+
+  const maintainPreloadBuffer = async () => {
+    while (preloadedRef.current.length < 10 && wordQueueRef.current.length > 0) {
+      await loadNextVideo();
+    }
+  };
+
 
   const startPlaybackLoop = async () => {
     isPlayingRef.current = true;
 
-    while (wordQueueRef.current.length > 0) {
-      const { word, path } = wordQueueRef.current.shift();
-      playedWordsRef.current.add(word);
-      setCurrentWord(word);
-
-      console.log("[0]: Playing:", word, "→", path);
-
-      const videoExists = await checkVideoExists(path);
-      if (!videoExists) {
-        console.warn("[0] [WARNING]: Skipping missing/invalid video for: ${word}");
-        continue;
+    while (true) {
+      if (preloadedRef.current.length === 0) {
+        if (wordQueueRef.current.length === 0) break;
+        await maintainPreloadBuffer();
+        if (preloadedRef.current.length === 0) break;
       }
+
+      const { word, path, element } = preloadedRef.current.shift();
+
+      if (word === lastShownWordRef.current) repeatCountRef.current += 1;
+      else repeatCountRef.current = 1;
+      lastShownWordRef.current = word;
+
+      setCurrentWord(
+        repeatCountRef.current > 1
+          ? `${word} (${repeatCountRef.current})`
+          : word
+      );
 
       await new Promise((resolve) => {
         const video = videoRef.current;
         if (!video) return resolve();
 
-        const cleanup = () => {
-          video.removeEventListener("ended", handleEnded);
-          video.removeEventListener("error", handleError);
-          video.removeEventListener("canplay", handleCanPlay);
+        const clean = () => {
+          video.removeEventListener("ended", end);
+          video.removeEventListener("error", err);
         };
 
-        const handleEnded = () => {
-          cleanup();
+        const end = () => {
+          clean();
+          setCurrentWord("");
           resolve();
         };
 
-        const handleError = () => {
-          console.warn("[0] [WARNING]: Could not load video for: ${word}");
-          cleanup();
+        const err = () => {
+          clean();
+          setCurrentWord("");
           resolve();
         };
 
-        const handleCanPlay = () => {
-          video.removeEventListener("canplay", handleCanPlay);
-          video.playbackRate = 1.5;
-          video.play().catch((err) => {
-            console.error("[0] [ERROR]: Playback error:", err);
-            cleanup();
-            resolve();
-          });
-        };
+        video.addEventListener("ended", end);
+        video.addEventListener("error", err);
 
-        video.addEventListener("ended", handleEnded);
-        video.addEventListener("error", handleError);
-        video.addEventListener("canplay", handleCanPlay);
-        video.src = path;
-        video.load();
+        video.src = element.src;
+        video.playbackRate = 2;
+        video.play().catch(() => {
+          clean();
+          setCurrentWord("");
+          resolve();
+        });
       });
+
+      await maintainPreloadBuffer();
     }
 
     setCurrentWord("");
     isPlayingRef.current = false;
   };
+
 
   const checkVideoExists = async (path) => {
     try {
@@ -111,13 +183,7 @@ function SignPage() {
   };
 
   return (
-    <div
-      className={`flex flex-col items-center justify-center h-screen ${
-        darkMode
-          ? "bg-darkTheme-dark1 text-blue-100"
-          : "bg-whiteTheme-light1 text-whiteTheme-accent1"
-      }`}
-    >
+    <div className="flex flex-col items-center justify-center h-screen bg-black text-white">
       <video
         ref={videoRef}
         autoPlay
@@ -128,7 +194,12 @@ function SignPage() {
           visibility: currentWord ? "visible" : "hidden",
         }}
       />
-      {!currentWord && <h1 className="mt-4">Waiting for signs...</h1>}
+
+      {currentWord ? (
+        <h2 className="mt-4 text-2xl font-bold">Showing: {currentWord}</h2>
+      ) : (
+        <h1 className="mt-4">Waiting for signs...</h1>
+      )}
     </div>
   );
 }

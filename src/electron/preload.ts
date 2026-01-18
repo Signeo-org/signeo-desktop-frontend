@@ -29,6 +29,10 @@ export interface ElectronAPI {
   offAudioDeviceList: (callback: (devices: string[]) => void) => void;
   toggleSignWindow: (show: boolean) => Promise<boolean>;
   toggleSubtitleWindow: (show: boolean) => Promise<boolean>;
+  reportSubtitleSize: (size: { width: number; height: number }) => void;
+  getResourcesPath: () => string;
+  resolveSLPath: (word: string) => string;
+  getSignVideoPath: (word: string) => Promise<string>;
 
   /* tiny utility that shows the effective build mode */
   env: { NODE_ENV: string | undefined };
@@ -51,6 +55,25 @@ const api: ElectronAPI = {
   on: (ch, fn) => ipcRenderer.on(ch, fn),
   once: (ch, fn) => ipcRenderer.once(ch, fn),
   invoke: (ch, ...a) => ipcRenderer.invoke(ch, ...a),
+
+  reportSubtitleSize: (size) => ipcRenderer.send("subtitle-size", size),
+
+  getResourcesPath: () => process.resourcesPath,
+
+  // find the path to a sign language video for a given word
+  // use one path for development, another for production
+  // Deprecated: use getSignVideoPath instead for correct absolute path
+  resolveSLPath: (word: string) => {
+    if (process.env.NODE_ENV === "development") {
+      return `../../resources/SL/${word}/shortest.mp4`;
+    } else {
+      return `${process.resourcesPath}/resources/SL/${word}/shortest.mp4`;
+    }
+  },
+
+  // New: get the correct absolute file:// path from main process
+  getSignVideoPath: (word: string) =>
+    ipcRenderer.invoke("resolve-sign-video-path", word).then((result) => result as string),
 
   openAuxWindows: () => {
     ipcRenderer.send("toggle-sign-window", true);
@@ -100,7 +123,7 @@ const api: ElectronAPI = {
   },
 
   getAudioDevices: () => {
-    ipcRenderer.invoke("launch-audio-tool"); // this re-triggers list
+    ipcRenderer.send("request-device-list"); // this re-triggers list
   },
 
   onAudioDeviceList: (callback) => {

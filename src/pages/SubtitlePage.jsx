@@ -1,65 +1,63 @@
 import React, { useEffect, useState, useRef } from "react";
+import { useSettings } from "../contexts/SettingsContext";
+import { useTheme } from "../App";
 
 function SubtitlePage() {
-  const [darkMode, setDarkMode] = useState(() => {
-    const savedDarkMode = localStorage.getItem("darkMode");
-    return savedDarkMode ? JSON.parse(savedDarkMode) : false;
-  });
-
+  const { darkMode } = useTheme();
+  const { fontSize } = useSettings();
   const [lines, setLines] = useState([]);
-  const buffer = useRef("");
+  const measureRef = useRef(null);
+
+  // Map fontSize setting to Tailwind classes (or inline style)
+  const fontSizeClass = React.useMemo(() => {
+    return {
+      Small: "text-xl",
+      Medium: "text-3xl",
+      Large: "text-5xl",
+    }[fontSize] || "text-3xl";
+  }, [fontSize]);
 
   useEffect(() => {
-    const handleText = (data) => {
-      console.log("[0]: Raw data received:", data);
-      buffer.current += data;
+    const handleText = (raw) => {
+      const cleaned = raw
+        .trim()
+        .replace(/^\[1\]:\s*/, "")
+        .replace(/^\[Transcription\]\s*/, "")
+        .replace(/\[[^\]]*\]|\([^\)]*\)/g, "")
+        .trim();
+      if (!cleaned) return;
 
-      const all = buffer.current.split(/\r?\n/);
-      buffer.current = all.pop(); // keep incomplete line
-
-      const cleanedLines = all
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0)
-        .map((line) => line.replace(/^\[Transcription\]\s*/, "").trim());
-
-      for (const line of cleanedLines) {
-        console.log("[0]: Dispatching subtitle:", line);
-        window.dispatchEvent(new CustomEvent("subtitle-update", { detail: line }));
-      }
-
-      if (cleanedLines.length > 0) {
-        setLines((prev) => {
-          const combined = [...prev, ...cleanedLines];
-          const deduped = combined.filter(
-            (line, i, arr) => i === 0 || line !== arr[i - 1]
-          );
-          return deduped.slice(-2);
-        });
-      }
+      setLines((prev) => {
+        const combined = [...prev, cleaned];
+        const deduped = combined.filter(
+          (line, i, arr) => i === 0 || line !== arr[i - 1]
+        );
+        return deduped.slice(-2); // keep last 2 lines
+      });
     };
 
-    if (window.electronAPI?.onTranscriptionOutput) {
-      window.electronAPI.onTranscriptionOutput(handleText);
-    }
-
-    return () => {};
+    window.electronAPI?.onTranscriptionOutput?.(handleText);
   }, []);
+
+  useEffect(() => {
+    if (measureRef.current && window.electronAPI?.reportSubtitleSize) {
+      const { offsetWidth: width, offsetHeight: height } = measureRef.current;
+      window.electronAPI.reportSubtitleSize({ width, height });
+    }
+  }, [lines, fontSize]); // ✅ recalc when fontSize changes
 
   return (
     <div
-      className={`flex w-screen h-screen align-middle justify-center items-center text-center text-3xl font-semibold px-4 ${
-        darkMode
-          ? "bg-darkTheme-dark1 text-blue-100"
-          : "bg-whiteTheme-light1 text-whiteTheme-accent1"
+      ref={measureRef}
+      className={`flex flex-col w-auto h-auto items-center justify-center text-center font-semibold px-4 ${fontSizeClass} ${
+        darkMode ? "text-white" : "text-white"
       }`}
     >
-      <div>
-        {lines.length > 0 ? (
-          lines.map((line, idx) => <div key={idx}>{line}</div>)
-        ) : (
-          <h1>No text received yet</h1>
-        )}
-      </div>
+      {lines.length > 0 ? (
+        lines.map((line, idx) => <div key={idx}>{line}</div>)
+      ) : (
+        <h1>No text received yet</h1>
+      )}
     </div>
   );
 }

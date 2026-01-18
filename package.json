@@ -1,18 +1,19 @@
 {
-  "name": "my-electron",
+  "name": "signeo",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.7.4",
   "type": "module",
   "main": "dist/electron/main.js",
   "scripts": {
     "dev": "vite",
+    "clean": "rimraf dist/release",
     "build": "vite build && electron-builder",
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
     "preview": "vite preview"
   },
   "build": {
     "appId": "com.example.myapp",
-    "productName": "My_Client",
+    "productName": "Signeo",
     "asar": true,
     "files": [
       "dist/renderer/**",
@@ -23,11 +24,11 @@
       "output": "dist/release"
     },
     "win": {
-      "icon": "src/assets/icon/test.ico",
+      "icon": "src/assets/icon/signeo.png",
       "target": "portable"
     },
     "mac": {
-      "icon": "src/assets/icon/test.icns",
+      "icon": "src/assets/icon/signeo.png",
       "target": "dmg"
     },
     "linux": {
@@ -39,8 +40,8 @@
     },
     "extraResources": [
       {
-        "from": "src/assets/icon/test.ico",
-        "to": "icon.ico"
+        "from": "src/assets/icon/signeo.png",
+        "to": "signeo.png"
       },
       {
         "from": "resources",
@@ -88,5 +89,5 @@
   "author": {
     "name": "Ignacio"
   },
-  "description": "My Electron App"
+  "description": "Signeo"
 }
