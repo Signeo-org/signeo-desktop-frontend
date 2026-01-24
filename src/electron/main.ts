@@ -266,7 +266,15 @@ let transcriptionProcess: ReturnType<typeof spawn> | null = null;
 let currentWebContents: Electron.WebContents | null = null;
 let isLaunching = false;
 let isToolRunning = false;
-let cachedDeviceList: string[] = [];
+// Store device objects with actual indices from backend
+interface AudioDevice {
+  index: number;       // Actual backend device index
+  name: string;        // Display name (no index prefix)
+  channels: number;
+  sample_rate: number;
+  is_default: boolean;
+}
+let cachedDeviceList: AudioDevice[] = [];
 
 ipcMain.handle("launch-audio-tool", async (event) => {
   if (isToolRunning) {
@@ -281,13 +289,15 @@ ipcMain.handle("launch-audio-tool", async (event) => {
   isLaunching = true;
   isToolRunning = true;
 
+  // Production: electron-builder bundles to resources/
+  // Development: read directly from backend/build
   const audioToolPathExe = app.isPackaged
-    ? path.join(process.resourcesPath, "resources/AudioTranscriptionTool.exe")
-    : path.join(__dirname, "../../resources/AudioTranscriptionTool.exe");
+    ? path.join(process.resourcesPath, "resources/signeo-core.exe")
+    : path.join(__dirname, "../../../backend/build/signeo-core.exe");
 
   const audioToolPath = app.isPackaged
-    ? path.join(process.resourcesPath, "resources/AudioTranscriptionTool")
-    : path.join(__dirname, "../../resources/AudioTranscriptionTool");
+    ? path.join(process.resourcesPath, "resources/signeo-core")
+    : path.join(__dirname, "../../../backend/build/signeo-core");
 
   let selectedToolPath: string;
   if (process.platform === "win32" && fs.existsSync(audioToolPathExe)) {
@@ -296,49 +306,99 @@ ipcMain.handle("launch-audio-tool", async (event) => {
     selectedToolPath = audioToolPath;
   } else {
     selectedToolPath = audioToolPathExe;
-    console.warn("⚠️ No native binary found, falling back to .exe");
+    console.warn("⚠️ No native binary found at:", audioToolPathExe);
   }
 
   console.log("[0]: Launching tool at:", selectedToolPath);
 
   try {
-    const child = execFile(selectedToolPath, [], {
+    // Add --json flag for structured IPC
+    const child = execFile(selectedToolPath, ["--json"], {
       cwd: path.dirname(selectedToolPath),
-      stdio: ["pipe", "pipe", "ignore"],
+      stdio: ["pipe", "pipe", "pipe"],
     }); 
 
 
     transcriptionProcess = child;
     currentWebContents = event.sender;
-    let buffer = "";
-    let deviceIndexSent = false;
+    let lineBuffer = "";
 
-    const onStdout = (data) => {
-      const raw = data.toString();
-      const formatted = raw.split(/\r?\n/).filter(Boolean).join("\n");
-      console.log(formatted);
-      buffer += formatted;
-
-      // ✅ Parse device lines & cache them
-      const deviceLines = buffer.match(/\[\d+\] .+/g); // match all devices, not just `[Input]`
-      if (deviceLines) {
-        cachedDeviceList = deviceLines;
-        BrowserWindow.getAllWindows().forEach((win) => {
-          if (!win.isDestroyed()) win.webContents.send("device-list", cachedDeviceList);
-        });
-      }
-
-      // ✅ Forward transcription output to all windows
-      BrowserWindow.getAllWindows().forEach((win) => {
-        if (!win.isDestroyed()) {
-          win.webContents.send("transcription-output", formatted);
+    const onStdout = (data: Buffer) => {
+      const raw = data.toString("utf8");
+      lineBuffer += raw;
+      
+      // Process complete lines (NDJSON)
+      const lines = lineBuffer.split("\n");
+      lineBuffer = lines.pop() || ""; // Keep incomplete line in buffer
+      
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        
+        try {
+          const msg = JSON.parse(line);
+          console.log("[IPC]:", msg.type, msg);
+          
+          switch (msg.type) {
+            case "ready":
+              console.log("✅ Backend ready, version:", msg.version);
+              break;
+              
+            case "devices":
+              // Store device objects with actual indices
+              cachedDeviceList = msg.devices.map((d: any) => ({
+                index: d.index,
+                name: d.name,
+                channels: d.channels,
+                sample_rate: d.sample_rate,
+                is_default: d.is_default
+              }));
+              BrowserWindow.getAllWindows().forEach((win) => {
+                if (!win.isDestroyed()) win.webContents.send("device-list", cachedDeviceList);
+              });
+              break;
+              
+            case "device_selected":
+              console.log(`✅ Device selected: [${msg.index}] ${msg.name}`);
+              BrowserWindow.getAllWindows().forEach((win) => {
+                if (!win.isDestroyed()) win.webContents.send("device-selected", msg);
+              });
+              break;
+              
+            case "partial":
+              BrowserWindow.getAllWindows().forEach((win) => {
+                if (!win.isDestroyed()) {
+                  win.webContents.send("transcription-output", msg.text);
+                }
+              });
+              break;
+              
+            case "final":
+              BrowserWindow.getAllWindows().forEach((win) => {
+                if (!win.isDestroyed()) {
+                  // Send finals on same channel as partials for UI display
+                  win.webContents.send("transcription-output", msg.text);
+                }
+              });
+              break;
+              
+            case "status":
+              console.log("Status:", msg.state);
+              break;
+              
+            case "error":
+              console.error("Backend error:", msg.code, msg.message);
+              break;
+          }
+        } catch (e) {
+          // Not JSON, log as raw output
+          console.log("[Backend]:", line);
         }
-      });
+      }
     };
 
-    child.stdout.on("data", onStdout);
+    child.stdout?.on("data", onStdout);
 
-    child.stderr.on("data", (data) => {
+    child.stderr?.on("data", (data) => {
       const msg = data.toString();
       if (!msg.includes("SetApplicationIsDaemon")) {
         console.error(`[TOOL-ERR]: ${msg}`);
@@ -375,10 +435,13 @@ ipcMain.handle("select-audio-device", (_, index: number) => {
     return false;
   }
   try {
-    transcriptionProcess.stdin.write(`${index}\n`);
+    // Send JSON command for IPC
+    const cmd = JSON.stringify({ cmd: "select_device", index });
+    transcriptionProcess.stdin.write(`${cmd}\n`);
+    console.log("[IPC] Sent:", cmd);
     return true;
   } catch (err) {
-    console.error("[0] [ERROR]: Failed to write index:", err);
+    console.error("[0] [ERROR]: Failed to write command:", err);
     cleanupProcess();
     return false;
   }

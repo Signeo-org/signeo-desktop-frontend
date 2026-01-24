@@ -1,5 +1,14 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
 
+// Audio device object with actual backend index
+export interface AudioDevice {
+  index: number;       // Actual backend device index
+  name: string;        // Display name
+  channels: number;
+  sample_rate: number;
+  is_default: boolean;
+}
+
 export interface ElectronAPI {
   /** Subscribe for as-many-times-as-needed events */
   on: (
@@ -25,8 +34,8 @@ export interface ElectronAPI {
   onTranscriptionOutput: (callback: (text: string) => void) => void;
   getAudioDevices: () => void;
   selectAudioDevice: (index: number) => Promise<boolean>;
-  onAudioDeviceList: (callback: (devices: string[]) => void) => void;
-  offAudioDeviceList: (callback: (devices: string[]) => void) => void;
+  onAudioDeviceList: (callback: (devices: AudioDevice[]) => void) => () => void;
+  offAudioDeviceList: (callback: (devices: AudioDevice[]) => void) => void;
   toggleSignWindow: (show: boolean) => Promise<boolean>;
   toggleSubtitleWindow: (show: boolean) => Promise<boolean>;
   reportSubtitleSize: (size: { width: number; height: number }) => void;
@@ -40,7 +49,7 @@ export interface ElectronAPI {
 
 const transcriptionCallbacks: ((text: string) => void)[] = [];
 const transcriptionBacklog: string[] = [];
-const deviceListCallbacks: ((devices: string[]) => void)[] = [];
+const deviceListCallbacks: ((devices: AudioDevice[]) => void)[] = [];
 
 // Handle streaming transcription
 ipcRenderer.on("transcription-output", (_event, text: string) => {
@@ -97,7 +106,7 @@ const api: ElectronAPI = {
       .invoke("launch-audio-tool")
       .then(() => true)
       .catch((err) => {
-        console.error("[0] [ERROR]: Failed to launch AudioTranscriptionTool.exe:", err);
+        console.error("[0] [ERROR]: Failed to launch signeo-core:", err);
         return false;
       });
   },
@@ -107,7 +116,7 @@ const api: ElectronAPI = {
       .invoke("stop-audio-tool")
       .then(() => true)
       .catch((err) => {
-        console.error("[0] [ERROR]: Failed to stop AudioTranscriptionTool.exe:", err);
+        console.error("[0] [ERROR]: Failed to stop signeo-core:", err);
         return false;
       });
   },
@@ -129,7 +138,7 @@ const api: ElectronAPI = {
   onAudioDeviceList: (callback) => {
     deviceListCallbacks.push(callback);
     // Create a properly typed wrapper function that matches ipcRenderer's expected signature
-    const wrappedCallback = (_event: IpcRendererEvent, devices: string[]) => {
+    const wrappedCallback = (_event: IpcRendererEvent, devices: AudioDevice[]) => {
       callback(devices);
     };
     ipcRenderer.on("device-list", wrappedCallback);
@@ -150,7 +159,7 @@ const api: ElectronAPI = {
       deviceListCallbacks.splice(index, 1);
     }
     // Create a properly typed wrapper function that matches ipcRenderer's expected signature
-    const wrappedCallback = (_event: IpcRendererEvent, devices: string[]) => {
+    const wrappedCallback = (_event: IpcRendererEvent, devices: AudioDevice[]) => {
       callback(devices);
     };
     ipcRenderer.off("device-list", wrappedCallback);

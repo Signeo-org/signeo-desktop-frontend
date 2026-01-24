@@ -57,10 +57,12 @@ export default function MainPage() {
       localStorage.setItem("selectedDeviceIndex", String(selectedDeviceIndex));
       console.log(`[MainPage] Device locked and chosen index ${selectedDeviceIndex}`);
 
-      if (window.electronAPI?.selectAudioDevice) {
+      if (window.electronAPI?.selectAudioDevice && devices[selectedDeviceIndex]) {
+        // Use actual device index from device object, not array position
+        const actualDeviceIndex = devices[selectedDeviceIndex].index;
         window.electronAPI
-          .selectAudioDevice(Number(selectedDeviceIndex))
-          .then(() => console.log(`[MainPage] Device index ${selectedDeviceIndex} sent to tool.`))
+          .selectAudioDevice(actualDeviceIndex)
+          .then(() => console.log(`[MainPage] Device index ${actualDeviceIndex} sent to tool.`))
           .catch((err) => console.error("[MainPage] Failed to send device index:", err));
       }
       setIsAudioToolRunning(true);
@@ -130,9 +132,9 @@ export default function MainPage() {
             <option disabled value="">
               {deviceLocked ? "Device Locked" : "Select a device"}
             </option>
-            {devices.map((device, index) => (
-              <option key={index} value={index}>
-                {device}
+            {devices.map((device, idx) => (
+              <option key={device.index} value={idx}>
+                {device.name}{device.is_default ? " [DEFAULT]" : ""}
               </option>
             ))}
           </select>

@@ -2,5 +2,5 @@
 *.exe
 /models
 *.bin
-AudioTranscriptionTool
+signeo-core
 SL
