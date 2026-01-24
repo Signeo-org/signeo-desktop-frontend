@@ -1,4 +1,5 @@
 import React from "react";
+import { ArrowLeft, Type, Subtitles, HandMetal, Moon, Sun } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../App";
 import { useSettings } from "../contexts/SettingsContext";
@@ -15,90 +16,232 @@ export default function SettingsPage() {
     setSubtitles,
   } = useSettings();
 
-  // ✅ Define missing toggleWindow function
+  const fontSizeClass = React.useMemo(() => {
+    return {
+      Small: "text-xl",
+      Medium: "text-3xl",
+      Large: "text-5xl",
+    }[fontSize] || "text-3xl";
+  }, [fontSize]);
+
   const toggleWindow = (type) => {
-    if (type === "subtitle") {
-      setSubtitles(!subtitles);
-    } else if (type === "sign") {
-      setSignLanguage(!signLanguage);
-    }
+    if (type === "subtitle") setSubtitles(!subtitles);
+    if (type === "sign") setSignLanguage(!signLanguage);
   };
 
-  // ✅ Define missing handleExitSettings
   const handleExitSettings = () => {
-    navigate("/"); // just navigate back to main
+    navigate("/");
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen px-4 transition bg-white dark:bg-black">
-      <div className="max-w-md w-full p-8 rounded-2xl shadow-2xl bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-800 space-y-6 relative">
-        {/* Dark Mode Toggle */}
-        <div className="absolute top-4 right-4">
+    <div
+      className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-300
+        ${
+          darkMode
+            ? "bg-linear-to-br from-[#0f172a] via-[#1e293b] to-[#0f172a]"
+            : "bg-linear-to-br from-[#e0e5ec] via-[#e8ecf0] to-[#d5dce3]"
+        }
+      `}
+    >
+      {/* Glass container */}
+      <div className="relative w-full max-w-2xl">
+        <div
+          className={`relative backdrop-blur-2xl rounded-[2.5rem] p-12 border transition-all duration-300
+            ${
+              darkMode
+                ? "bg-slate-800/40 border-slate-700/50 shadow-[20px_20px_60px_#0a0f1a,-20px_-20px_60px_#1e293b]"
+                : "bg-white/40 border-white/50 shadow-[20px_20px_60px_#bebebe,-20px_-20px_60px_#ffffff]"
+            }
+          `}
+        >
+        {/* Theme toggle */}
+        <div className="absolute top-8 right-8">
           <button
             onClick={() => setDarkMode(!darkMode)}
-            className="text-sm text-gray-400 hover:text-blue-500"
+            className={`p-4 rounded-2xl transition-all duration-200 group
+              ${darkMode
+                ? 'bg-[#1e293b] shadow-[6px_6px_12px_#0f172a,-6px_-6px_12px_#2d3e56] hover:shadow-[4px_4px_8px_#0f172a,-4px_-4px_8px_#2d3e56] active:shadow-[inset_3px_3px_6px_#0f172a,inset_-3px_-3px_6px_#2d3e56]'
+                : 'bg-[#e0e5ec] shadow-[6px_6px_12px_#c5cad1,-6px_-6px_12px_#ffffff] hover:shadow-[4px_4px_8px_#c5cad1,-4px_-4px_8px_#ffffff] active:shadow-[inset_3px_3px_6px_#c5cad1,inset_-3px_-3px_6px_#ffffff]'}
+              }`}
+            aria-label="Toggle theme"
           >
-            {darkMode ? "🌞 Light Mode" : "🌙 Dark Mode"}
+            {darkMode === 'light' ? (
+              <Moon className="w-5 h-5 text-[#5a6c7d] group-hover:text-[#6366f1] transition-colors duration-300" />
+            ) : (
+              <Sun className="w-5 h-5 text-[#94a3b8] group-hover:text-[#fbbf24] transition-colors duration-300" />
+            )}
           </button>
         </div>
-
-        <h2 className="text-2xl font-semibold text-center pt-2">Settings</h2>
-
-        <div className="space-y-4 text-sm">
-          {/* Font Size */}
-          <div>
-            <label className="block text-gray-600 dark:text-gray-400">
-              Subtitles Font Size
-            </label>
-            <select
-              value={fontSize}
-              onChange={(e) => setFontSize(e.target.value)}
-              className="w-full px-3 py-2 mt-1 rounded-lg bg-white dark:bg-gray-800 border dark:border-gray-700"
-            >
-              <option>Small</option>
-              <option>Medium</option>
-              <option>Large</option>
-            </select>
-          </div>
-
-          {/* Subtitles Toggle */}
-          <div className="flex items-center justify-between pt-2">
-            <label className="text-gray-600 dark:text-gray-400">Show Subtitles</label>
+          {/* Header */}
+          <div className="flex items-center gap-4 mb-10">
             <button
-              onClick={() => toggleWindow("subtitle")}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                subtitles ? "bg-blue-600" : "bg-gray-200 dark:bg-gray-700"
-              }`}
+              onClick={handleExitSettings}
+              className={`p-3 rounded-xl transition-all
+                ${
+                  darkMode
+                    ? "bg-[#1e293b] shadow-[4px_4px_8px_#0f172a,-4px_-4px_8px_#2d3e56]"
+                    : "bg-[#e0e5ec] shadow-[4px_4px_8px_#c5cad1,-4px_-4px_8px_#ffffff]"
+                }
+              `}
             >
-              <span
-                className={`${subtitles ? "translate-x-6" : "translate-x-1"} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+              <ArrowLeft
+                className={`w-5 h-5 ${
+                  darkMode ? "text-slate-300" : "text-[#5a6c7d]"
+                }`}
               />
             </button>
-          </div>
 
-          {/* Sign Language Toggle */}
-          <div className="flex items-center justify-between pt-2">
-            <label className="text-gray-600 dark:text-gray-400">Show Sign Language</label>
-            <button
-              onClick={() => toggleWindow("sign")}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                signLanguage ? "bg-blue-600" : "bg-gray-200 dark:bg-gray-700"
+            <h1
+              className={`text-3xl font-bold ${
+                darkMode ? "text-slate-100" : "text-[#2c3e50]"
               }`}
             >
-              <span
-                className={`${signLanguage ? "translate-x-6" : "translate-x-1"} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
-              />
-            </button>
+              Settings
+            </h1>
+          </div>
+
+          <div className="space-y-8">
+            {/* Font size card */}
+            <div
+              className={`p-6 rounded-2xl transition-all
+                ${
+                  darkMode
+                    ? "bg-slate-700/30 border border-slate-600/30"
+                    : "bg-linear-to-br from-white/60 to-white/30 border border-white/50"
+                }
+              `}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div
+                  className={`p-2 rounded-lg ${
+                    darkMode ? "bg-yellow-500/20" : "bg-yellow-500/10"
+                  }`}
+                >
+                  <Type className="w-5 h-5 text-[#FDB813]" />
+                </div>
+                <span
+                  className={`font-semibold ${
+                    darkMode ? "text-slate-100" : "text-[#2c3e50]"
+                  }`}
+                >
+                  Subtitle Size
+                </span>
+              </div>
+
+              <select
+                value={fontSize}
+                onChange={(e) => setFontSize(e.target.value)}
+                className={`w-full px-4 py-3 rounded-xl backdrop-blur border
+                  ${
+                    darkMode
+                      ? "bg-slate-900/40 border-slate-700 text-slate-200"
+                      : "bg-white/60 border-white/70"
+                  }
+                `}
+              >
+                <option>Small</option>
+                <option>Medium</option>
+                <option>Large</option>
+              </select>
+              <div className={`p-4 mt-2 rounded-lg text-center ${
+                  darkMode ? 'bg-slate-800/50' : 'bg-white/50'
+                }`} style={{ fontSize: `${fontSize}px` }}>
+                  <span className={`${fontSizeClass} ${darkMode ? 'text-slate-200 ' : 'text-[#2c3e50]'}`}>
+                    Preview Text
+                  </span>
+                </div>
+            </div>
+
+            {/* Toggles */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Subtitles */}
+              <div
+                className={`p-6 rounded-2xl transition-all
+                  ${
+                    darkMode
+                      ? "bg-slate-700/30 border border-slate-600/30"
+                      : "bg-linear-to-br from-white/60 to-white/30 border border-white/50"
+                  }
+                `}
+              >
+                <div className="flex flex-col items-center gap-4">
+                  <div
+                    className={`p-3 rounded-full ${
+                      darkMode ? "bg-emerald-500/20" : "bg-emerald-500/10"
+                    }`}
+                  >
+                    <Subtitles className="w-6 h-6 text-[#10b981]" />
+                  </div>
+
+                  <span
+                    className={`font-semibold ${
+                      darkMode ? "text-slate-100" : "text-[#2c3e50]"
+                    }`}
+                  >
+                    Subtitles
+                  </span>
+                  <button
+                    onClick={() => toggleWindow("subtitle")}
+                    className={`w-full py-3 px-4 rounded-xl font-medium transition-all duration-200 ${
+                      subtitles
+                        ? darkMode
+                          ? 'bg-linear-to-br from-[#10b981] to-[#059669] text-white shadow-[4px_4px_12px_#047857,-4px_-4px_12px_#14b885]'
+                          : 'bg-linear-to-br from-[#10b981] to-[#059669] text-white shadow-[4px_4px_12px_#059669,-4px_-4px_12px_#34d399]'
+                        : darkMode
+                          ? 'bg-[#1e293b] text-slate-400 shadow-[4px_4px_8px_#0f172a,-4px_-4px_8px_#2d3e56]'
+                          : 'bg-[#e0e5ec] text-[#5a6c7d] shadow-[4px_4px_8px_#c5cad1,-4px_-4px_8px_#ffffff]'
+                    }`}
+                  >
+                    {subtitles ? 'Enabled' : 'Disabled'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Sign language */}
+              <div
+                className={`p-6 rounded-2xl transition-all
+                  ${
+                    darkMode
+                      ? "bg-slate-700/30 border border-slate-600/30"
+                      : "bg-linear-to-br from-white/60 to-white/30 border border-white/50"
+                  }
+                `}
+              >
+                <div className="flex flex-col items-center gap-4">
+                  <div
+                    className={`p-3 rounded-full ${
+                      darkMode ? "bg-amber-500/20" : "bg-amber-500/10"
+                    }`}
+                  >
+                    <HandMetal className="w-6 h-6 text-[#f59e0b]" />
+                  </div>
+
+                  <span
+                    className={`font-semibold ${
+                      darkMode ? "text-slate-100" : "text-[#2c3e50]"
+                    }`}
+                  >
+                    Signs
+                  </span>
+                  <button
+                    onClick={() => toggleWindow("sign")}
+                    className={`w-full py-3 px-4 rounded-xl font-medium transition-all duration-200 ${
+                      signLanguage
+                        ? darkMode
+                          ? 'bg-linear-to-br from-[#f59e0b] to-[#d97706] text-white shadow-[4px_4px_12px_#b45309,-4px_-4px_12px_#fbbf24]'
+                          : 'bg-linear-to-br from-[#f59e0b] to-[#d97706] text-white shadow-[4px_4px_12px_#d97706,-4px_-4px_12px_#fbbf24]'
+                        : darkMode
+                          ? 'bg-[#1e293b] text-slate-400 shadow-[4px_4px_8px_#0f172a,-4px_-4px_8px_#2d3e56]'
+                          : 'bg-[#e0e5ec] text-[#5a6c7d] shadow-[4px_4px_8px_#c5cad1,-4px_-4px_8px_#ffffff]'
+                    }`}
+                  >
+                    {signLanguage ? 'Enabled' : 'Disabled'}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-
-        {/* Exit Button */}
-        <button
-          onClick={handleExitSettings}
-          className="mt-6 w-full text-sm bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg"
-        >
-          ← Back to Main
-        </button>
       </div>
     </div>
   );
