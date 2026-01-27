@@ -146,8 +146,8 @@ function createAuxWindow(type: "sign" | "subtitle") {
       // 🟢 macOS always-on-top across apps
       titleBarStyle: "customButtonsOnHover",
       hasShadow: false,
-      webPreferences: { 
-        preload: path.join(__dirname, "preload.mjs"), 
+      webPreferences: {
+        preload: path.join(__dirname, "preload.mjs"),
         contextIsolation: true,
         webSecurity: false
       },
@@ -164,8 +164,8 @@ function createAuxWindow(type: "sign" | "subtitle") {
       titleBarStyle: "customButtonsOnHover",
       hasShadow: false,
       focusable: false,
-      webPreferences: { 
-        preload: path.join(__dirname, "preload.mjs"), 
+      webPreferences: {
+        preload: path.join(__dirname, "preload.mjs"),
         contextIsolation: true,
         webSecurity: false
       },
@@ -175,14 +175,14 @@ function createAuxWindow(type: "sign" | "subtitle") {
   const win = new BrowserWindow(options);
 
   // ✅ macOS-specific behavior: stay on top of ALL apps 
-  if (process.platform === "darwin") { 
+  if (process.platform === "darwin") {
     win.setAlwaysOnTop(true, "screen-saver"); // highest floating level 
-    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); 
-    win.setFullScreenable(false); 
+    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    win.setFullScreenable(false);
   }
 
   // ✅ Windows/Linux: force topmost
-  if (process.platform !== "darwin") { 
+  if (process.platform !== "darwin") {
     win.setAlwaysOnTop(true, "pop-up-menu");
   }
 
@@ -292,7 +292,7 @@ ipcMain.handle("launch-audio-tool", async (event) => {
   // Production: electron-builder bundles to resources/
   // Development: read directly from backend/build
   const audioToolPathExe = app.isPackaged
-    ? path.join(process.resourcesPath, "resources/signeo-core.exe")
+    ? path.join(process.resourcesPath, "backend/signeo-core.exe")
     : path.join(__dirname, "../../../backend/build/signeo-core.exe");
 
   const audioToolPath = app.isPackaged
@@ -312,11 +312,11 @@ ipcMain.handle("launch-audio-tool", async (event) => {
   console.log("[0]: Launching tool at:", selectedToolPath);
 
   try {
-    // Add --json flag for structured IPC
-    const child = execFile(selectedToolPath, ["--json"], {
+    // Launch backend (defaults to JSON output mode)
+    const child = execFile(selectedToolPath, [], {
       cwd: path.dirname(selectedToolPath),
       stdio: ["pipe", "pipe", "pipe"],
-    }); 
+    });
 
 
     transcriptionProcess = child;
@@ -326,23 +326,23 @@ ipcMain.handle("launch-audio-tool", async (event) => {
     const onStdout = (data: Buffer) => {
       const raw = data.toString("utf8");
       lineBuffer += raw;
-      
+
       // Process complete lines (NDJSON)
       const lines = lineBuffer.split("\n");
       lineBuffer = lines.pop() || ""; // Keep incomplete line in buffer
-      
+
       for (const line of lines) {
         if (!line.trim()) continue;
-        
+
         try {
           const msg = JSON.parse(line);
           console.log("[IPC]:", msg.type, msg);
-          
+
           switch (msg.type) {
             case "ready":
               console.log("✅ Backend ready, version:", msg.version);
               break;
-              
+
             case "devices":
               // Store device objects with actual indices
               cachedDeviceList = msg.devices.map((d: any) => ({
@@ -356,14 +356,14 @@ ipcMain.handle("launch-audio-tool", async (event) => {
                 if (!win.isDestroyed()) win.webContents.send("device-list", cachedDeviceList);
               });
               break;
-              
+
             case "device_selected":
               console.log(`✅ Device selected: [${msg.index}] ${msg.name}`);
               BrowserWindow.getAllWindows().forEach((win) => {
                 if (!win.isDestroyed()) win.webContents.send("device-selected", msg);
               });
               break;
-              
+
             case "partial":
               BrowserWindow.getAllWindows().forEach((win) => {
                 if (!win.isDestroyed()) {
@@ -371,7 +371,7 @@ ipcMain.handle("launch-audio-tool", async (event) => {
                 }
               });
               break;
-              
+
             case "final":
               BrowserWindow.getAllWindows().forEach((win) => {
                 if (!win.isDestroyed()) {
@@ -380,11 +380,11 @@ ipcMain.handle("launch-audio-tool", async (event) => {
                 }
               });
               break;
-              
+
             case "status":
               console.log("Status:", msg.state);
               break;
-              
+
             case "error":
               console.error("Backend error:", msg.code, msg.message);
               break;
