@@ -51,23 +51,18 @@ export default function MainPage() {
       return;
     }
 
-    // ✅ If first launch → lock device & stdout to backend
-    if (isFirstExecution && (!deviceLocked || !isAudioToolRunning)) {
-      setDeviceLocked(true);
-      setIsFirstExecution(false); // Mark as not first execution anymore
-      localStorage.setItem("selectedDeviceIndex", String(selectedDeviceIndex));
-      console.log(`[MainPage] Device locked and chosen index ${selectedDeviceIndex}`);
+    localStorage.setItem("selectedDeviceIndex", String(selectedDeviceIndex));
+    console.log(`[MainPage] Device locked and chosen index ${selectedDeviceIndex}`);
 
-      if (window.electronAPI?.selectAudioDevice && devices[selectedDeviceIndex]) {
-        // Use actual device index from device object, not array position
-        const actualDeviceIndex = devices[selectedDeviceIndex].index;
-        window.electronAPI
-          .selectAudioDevice(actualDeviceIndex)
-          .then(() => console.log(`[MainPage] Device index ${actualDeviceIndex} sent to tool.`))
-          .catch((err) => console.error("[MainPage] Failed to send device index:", err));
-      }
-      setIsAudioToolRunning(true);
+    if (window.electronAPI?.selectAudioDevice && devices[selectedDeviceIndex]) {
+      // Use actual device index from device object, not array position
+      const actualDeviceIndex = devices[selectedDeviceIndex].index;
+      window.electronAPI
+        .selectAudioDevice(actualDeviceIndex)
+        .then(() => console.log(`[MainPage] Device index ${actualDeviceIndex} sent to tool.`))
+        .catch((err) => console.error("[MainPage] Failed to send device index:", err));
     }
+    setIsAudioToolRunning(true);
 
     if (!isPlaying) {
       // Start translation
