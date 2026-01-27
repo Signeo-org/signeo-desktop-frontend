@@ -38,8 +38,8 @@ export default function MainPage() {
   }, []);
 
   const handleDeviceChange = (e) => {
-    const index = parseInt(e.target.value);
-    setSelectedDeviceIndex(index);
+    const deviceIndex = parseInt(e.target.value);
+    setSelectedDeviceIndex(deviceIndex);
     setDeviceChosen(true);
   };
 
@@ -54,12 +54,11 @@ export default function MainPage() {
     localStorage.setItem("selectedDeviceIndex", String(selectedDeviceIndex));
     console.log(`[MainPage] Device locked and chosen index ${selectedDeviceIndex}`);
 
-    if (window.electronAPI?.selectAudioDevice && devices[selectedDeviceIndex]) {
-      // Use actual device index from device object, not array position
-      const actualDeviceIndex = devices[selectedDeviceIndex].index;
+    if (window.electronAPI?.selectAudioDevice && selectedDeviceIndex !== "") {
+      // Send actual device index directly to the backend
       window.electronAPI
-        .selectAudioDevice(actualDeviceIndex)
-        .then(() => console.log(`[MainPage] Device index ${actualDeviceIndex} sent to tool.`))
+        .selectAudioDevice(selectedDeviceIndex)
+        .then(() => console.log(`[MainPage] Device index ${selectedDeviceIndex} sent to tool.`))
         .catch((err) => console.error("[MainPage] Failed to send device index:", err));
     }
     setIsAudioToolRunning(true);
@@ -131,17 +130,16 @@ export default function MainPage() {
               )}
             </button>
           </div>
-          
+
           {/* Settings */}
           <button
             onClick={() => navigate("/settings")}
             className="block w-full text-center text-sm text-slate-400 hover:text-[#FDB813] transition"
           >
-            <Settings className={`w-5 h-5 group-hover:rotate-90 transition-all duration-300 ${
-              darkMode 
-                ? 'text-[#94a3b8] group-hover:text-[#FDB813]' 
-                : 'text-[#5a6c7d] group-hover:text-[#FDB813]'
-            }`} />
+            <Settings className={`w-5 h-5 group-hover:rotate-90 transition-all duration-300 ${darkMode
+              ? 'text-[#94a3b8] group-hover:text-[#FDB813]'
+              : 'text-[#5a6c7d] group-hover:text-[#FDB813]'
+              }`} />
           </button>
 
           {/* Header */}
@@ -165,9 +163,8 @@ export default function MainPage() {
           <div className="space-y-6">
             {/* Audio device */}
             <div>
-              <label className={`flex items-center gap-2 text-sm font-semibold transition-colors duration-300 ${
-                darkMode ? 'text-slate-100' : 'text-[#2c3e50]'
-              }`}>
+              <label className={`flex items-center gap-2 text-sm font-semibold transition-colors duration-300 ${darkMode ? 'text-slate-100' : 'text-[#2c3e50]'
+                }`}>
                 <Headphones className="w-4 h-4 text-[#FDB813]" />
                 Audio Device
               </label>
@@ -185,9 +182,9 @@ export default function MainPage() {
                 <option disabled value="">
                   {deviceLocked ? "Device Locked" : "Select device"}
                 </option>
-                {devices.map((device, index) => (
-                  <option key={index} value={index}>
-                    {device}
+                {devices.map((device) => (
+                  <option key={device.index} value={device.index}>
+                    {device.name}
                   </option>
                 ))}
               </select>
@@ -195,9 +192,8 @@ export default function MainPage() {
 
             {/* Language */}
             <div>
-              <label className={`flex items-center gap-2 text-sm font-semibold transition-colors duration-300 ${
-                darkMode ? 'text-slate-100' : 'text-[#2c3e50]'
-              }`}>
+              <label className={`flex items-center gap-2 text-sm font-semibold transition-colors duration-300 ${darkMode ? 'text-slate-100' : 'text-[#2c3e50]'
+                }`}>
                 <Languages className="w-4 h-4 text-[#FDB813]" />
                 Language
               </label>
@@ -225,15 +221,15 @@ export default function MainPage() {
               className={`
                 group relative w-full py-6 px-8 rounded-3xl font-semibold text-lg
                 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]
-                ${isPlaying 
-                  ? 'bg-linear-to-br from-[#ef4444] to-[#dc2626] text-white shadow-[8px_8px_20px_#be3c3c,-8px_-8px_20px_#ff5252]' 
+                ${isPlaying
+                  ? 'bg-linear-to-br from-[#ef4444] to-[#dc2626] text-white shadow-[8px_8px_20px_#be3c3c,-8px_-8px_20px_#ff5252]'
                   : 'bg-linear-to-br from-[#FDB813] to-[#F4A320] text-black shadow-[8px_8px_20px_#d99a10,-8px_-8px_20px_#ffd020]'
                 }
               `}
             >
               {/* Neumorphic inner glow */}
               <div className="absolute inset-0 rounded-3xl bg-linear-to-br from-white/20 to-transparent opacity-50 pointer-events-none"></div>
-              
+
               {/* Button Content */}
               <div className="relative flex items-center justify-center gap-3">
                 {isPlaying ? (
