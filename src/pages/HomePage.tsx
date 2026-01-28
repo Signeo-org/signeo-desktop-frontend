@@ -5,6 +5,7 @@ import { useTheme } from "../App";
 import { useApp } from "../contexts/AppContext";
 import { useSettings } from "../contexts/SettingsContext";
 import { Settings, Square, Mic, Headphones, Languages, Moon, Sun } from "lucide-react";
+import signeoLogo from "../assets/icon/signeo-clear.png";
 
 interface AudioDevice {
   index: number;
@@ -110,7 +111,7 @@ export default function HomePage() {
       `}
     >
       {/* Glass container - entrance animation */}
-      <div className="relative w-full max-w-lg animate-fade-in-up">
+      <div className="relative w-full max-w-lg md:max-w-xl lg:max-w-2xl animate-fade-in-up">
         <div
           className={`backdrop-blur-2xl rounded-[2.5rem] p-6 sm:p-8 md:p-12 border transition-all duration-300
             ${darkMode
@@ -150,24 +151,12 @@ export default function HomePage() {
           </button>
 
           {/* Header */}
-          <div className="text-center mb-10 animate-fade-in-up [animation-delay:100ms] opacity-0 fill-mode-forwards">
-            <div
-              className={`mx-auto mb-6 flex items-center justify-center w-20 h-20 rounded-full bg-linear-to-br transition-transform hover:scale-110 duration-300
-                ${darkMode
-                  ? "from-slate-700 to-[#1e293b] shadow-[8px_8px_16px_#0f172a,-8px_-8px_16px_#2d3e56]"
-                  : "from-white to-[#e0e5ec] shadow-[8px_8px_16px_#c5cad1,-8px_-8px_16px_#ffffff]"}
-              `}
-            >
-              <span className="text-3xl text-[#FDB813]">🎤</span>
-            </div>
-
-            <h1
-              className={`text-3xl font-bold tracking-tight ${
-                darkMode ? "text-slate-100" : "text-[#2c3e50]"
-              }`}
-            >
-              Signeo
-            </h1>
+          <div className="text-center mb-6 md:mb-8 animate-fade-in-up [animation-delay:100ms] opacity-0 fill-mode-forwards">
+             <img
+              src={signeoLogo}
+              alt="Signeo Logo"
+              className="mx-auto w-28 sm:w-32 md:w-40 lg:w-48 h-auto hover:scale-105 transition-transform duration-300 drop-shadow-md"
+            />
           </div>
 
           {/* Controls */}
