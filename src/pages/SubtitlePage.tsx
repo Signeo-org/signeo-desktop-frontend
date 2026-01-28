@@ -50,15 +50,18 @@ function SubtitlePage() {
   return (
     <div
       ref={measureRef}
-      className={`flex flex-col w-auto h-auto items-center justify-center text-center font-semibold px-4 ${fontSizeClass} ${
+      className={`flex flex-col items-center justify-center text-center font-semibold px-4 ${fontSizeClass} ${
         darkMode ? "text-white" : "text-white"
       }`}
+      style={{ width: '700pt', overflow: 'hidden', scrollbarWidth: 'none' }}
     >
-      {lines.length > 0 ? (
-        lines.map((line, idx) => <div key={idx}>{line}</div>)
-      ) : (
-        <h1>No text received yet</h1>
-      )}
+      <div style={{ marginBottom: '20pt' }}>
+        {lines.length > 0 ? (
+          lines.map((line, idx) => <div key={idx} style={{overflow: 'hidden', scrollbarColor: '#12737' }}>{line}</div>)
+        ) : (
+          <h1>No text received yet</h1>
+        )}
+      </div>
     </div>
   );
 }
