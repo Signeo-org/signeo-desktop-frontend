@@ -84,7 +84,7 @@ export function NeuButton({
       {...props}
     >
       {/* Inner glow overlay */}
-      <div className="absolute inset-0 rounded-inherit bg-gradient-to-br from-white/20 to-transparent opacity-50 pointer-events-none" />
+      <div className="absolute inset-0 rounded-inherit bg-linear-to-br from-white/20 to-transparent opacity-50 pointer-events-none" />
       
       {/* Content */}
       <span className="relative flex items-center justify-center gap-2">

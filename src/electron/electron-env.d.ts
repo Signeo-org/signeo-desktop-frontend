@@ -1,5 +1,3 @@
-/// <reference types="vite-plugin-electron/electron-env" />
-
 import { IpcRendererEvent } from "electron";
 
 declare namespace NodeJS {

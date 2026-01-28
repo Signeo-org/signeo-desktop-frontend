@@ -70,24 +70,25 @@ function createWindow() {
   }
 
   mainWindow.once("ready-to-show", async () => {
-    if (!mainWindow?.isDestroyed()) {
-      mainWindow.maximize();
-      mainWindow.show();
+    if (!mainWindow || mainWindow.isDestroyed()) return;
 
-      try {
-        console.log("🚀 Auto-starting audio tool...");
-        const handler = (ipcMain as any)._invokeHandlers.get("launch-audio-tool");
-        if (handler) {
-          // ✅ pass a fake event with a sender
-          await handler({ sender: mainWindow.webContents });
-          console.log("Audio tool launched successfully.");
-        } else {
-          console.error("[0] [ERROR]: No handler found for launch-audio-tool");
-        }
-      } catch (err) {
-        console.error("[0] [ERROR]: Failed to auto-start audio tool:", err);
+    mainWindow.maximize();
+    mainWindow.show();
+
+    try {
+      console.log("🚀 Auto-starting audio tool...");
+      const handler = (ipcMain as any)._invokeHandlers.get("launch-audio-tool");
+      if (handler) {
+        // ✅ pass a fake event with a sender
+        await handler({ sender: mainWindow.webContents });
+        console.log("Audio tool launched successfully.");
+      } else {
+        console.error("[0] [ERROR]: No handler found for launch-audio-tool");
       }
+    } catch (err) {
+      console.error("[0] [ERROR]: Failed to auto-start audio tool:", err);
     }
+
   });
 
 
@@ -318,7 +319,7 @@ ipcMain.handle("launch-audio-tool", async (event) => {
 
   try {
     // Launch backend (defaults to JSON output mode)
-    const child = execFile(selectedToolPath, [], {
+    const child = spawn(selectedToolPath, [], {
       cwd: path.dirname(selectedToolPath),
       stdio: ["pipe", "pipe", "pipe"],
     });

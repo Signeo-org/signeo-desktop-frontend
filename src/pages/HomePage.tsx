@@ -64,7 +64,7 @@ export default function HomePage() {
     localStorage.setItem("selectedDeviceIndex", String(selectedDeviceIndex));
     console.log(`[HomePage] Device locked and chosen index ${selectedDeviceIndex}`);
 
-    if (window.electronAPI?.selectAudioDevice && selectedDeviceIndex !== "") {
+    if (window.electronAPI?.selectAudioDevice && typeof selectedDeviceIndex === "number") {
       window.electronAPI
         .selectAudioDevice(selectedDeviceIndex)
         .then(() => console.log(`[HomePage] Device index ${selectedDeviceIndex} sent to tool.`))
