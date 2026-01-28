@@ -1,27 +1,37 @@
-import React, { useEffect, useRef, useState } from "react";
+// src/pages/SignPage.tsx
+import { useEffect, useRef, useState } from "react";
 import { useTheme } from "../App";
+
+interface WordEntry {
+  word: string;
+  path: string;
+}
+
+interface PreloadedEntry extends WordEntry {
+  element: HTMLVideoElement;
+}
 
 function SignPage() {
   const { darkMode } = useTheme();
   const [currentWord, setCurrentWord] = useState("");
 
-  const videoRef = useRef(null);
-  const wordQueueRef = useRef([]);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const wordQueueRef = useRef<WordEntry[]>([]);
   const isPlayingRef = useRef(false);
 
   const lastIndexRef = useRef(0);
   const lastTranscriptRef = useRef("");
 
-  const lastShownWordRef = useRef(""); // last word that successfully played
-  const repeatCountRef = useRef(1);    // count for repeated words after skips
+  const lastShownWordRef = useRef("");
+  const repeatCountRef = useRef(1);
 
-  const preloadedRef = useRef([]);
+  const preloadedRef = useRef<PreloadedEntry[]>([]);
 
   useEffect(() => {
     if (window.electronAPI?.onTranscriptionOutput) {
       console.log("[0]: onTranscriptionOutput subscribed");
 
-      window.electronAPI.onTranscriptionOutput((text) => {
+      window.electronAPI.onTranscriptionOutput((text: string) => {
         console.log("[0]: Received transcription:", text);
 
         // Ignore segments that are only brackets/parentheses
@@ -31,10 +41,13 @@ function SignPage() {
         }
 
         const cleanedText = text.replace(/\[.*?\]/g, "").toLowerCase();
-        const words = cleanedText.replace(/[^\w\s]/g, "").split(/\s+/).filter(Boolean);
+        const words = cleanedText
+          .replace(/[^\w\s]/g, "")
+          .split(/\s+/)
+          .filter(Boolean);
         if (words.length === 0) return;
 
-        let newWords;
+        let newWords: string[];
         if (!cleanedText.startsWith(lastTranscriptRef.current)) {
           console.log("[0]: Transcript reset detected → adding new sentence");
           newWords = words;
@@ -50,7 +63,7 @@ function SignPage() {
         Promise.all(
           newWords.map(async (word) => ({
             word,
-            path: await window.electronAPI.getSignVideoPath(word),
+            path: await window.electronAPI!.getSignVideoPath(word),
           }))
         ).then((entries) => {
           wordQueueRef.current.push(...entries);
@@ -91,7 +104,7 @@ function SignPage() {
     el.src = path;
     el.load();
 
-    await new Promise((resolve) => {
+    await new Promise<void>((resolve) => {
       const can = () => {
         el.removeEventListener("canplay", can);
         resolve();
@@ -109,7 +122,6 @@ function SignPage() {
     }
   };
 
-
   const startPlaybackLoop = async () => {
     isPlayingRef.current = true;
 
@@ -120,19 +132,15 @@ function SignPage() {
         if (preloadedRef.current.length === 0) break;
       }
 
-      const { word, path, element } = preloadedRef.current.shift();
+      const { word, element } = preloadedRef.current.shift()!;
 
       if (word === lastShownWordRef.current) repeatCountRef.current += 1;
       else repeatCountRef.current = 1;
       lastShownWordRef.current = word;
 
-      setCurrentWord(
-        repeatCountRef.current > 1
-          ? `${word} (${repeatCountRef.current})`
-          : word
-      );
+      setCurrentWord(repeatCountRef.current > 1 ? `${word} (${repeatCountRef.current})` : word);
 
-      await new Promise((resolve) => {
+      await new Promise<void>((resolve) => {
         const video = videoRef.current;
         if (!video) return resolve();
 
@@ -172,8 +180,7 @@ function SignPage() {
     isPlayingRef.current = false;
   };
 
-
-  const checkVideoExists = async (path) => {
+  const checkVideoExists = async (path: string): Promise<boolean> => {
     try {
       const response = await fetch(path, { method: "HEAD" });
       return response.ok;

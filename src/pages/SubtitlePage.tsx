@@ -1,24 +1,27 @@
-import React, { useEffect, useState, useRef } from "react";
+// src/pages/SubtitlePage.tsx
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useSettings } from "../contexts/SettingsContext";
 import { useTheme } from "../App";
+
+type FontSize = "Small" | "Medium" | "Large";
 
 function SubtitlePage() {
   const { darkMode } = useTheme();
   const { fontSize } = useSettings();
-  const [lines, setLines] = useState([]);
-  const measureRef = useRef(null);
+  const [lines, setLines] = useState<string[]>([]);
+  const measureRef = useRef<HTMLDivElement>(null);
 
-  // Map fontSize setting to Tailwind classes (or inline style)
-  const fontSizeClass = React.useMemo(() => {
-    return {
+  const fontSizeClass = useMemo(() => {
+    const classes: Record<FontSize, string> = {
       Small: "text-xl",
       Medium: "text-3xl",
       Large: "text-5xl",
-    }[fontSize] || "text-3xl";
+    };
+    return classes[fontSize as FontSize] || "text-3xl";
   }, [fontSize]);
 
   useEffect(() => {
-    const handleText = (raw) => {
+    const handleText = (raw: string) => {
       const cleaned = raw
         .trim()
         .replace(/^\[1\]:\s*/, "")
@@ -29,9 +32,7 @@ function SubtitlePage() {
 
       setLines((prev) => {
         const combined = [...prev, cleaned];
-        const deduped = combined.filter(
-          (line, i, arr) => i === 0 || line !== arr[i - 1]
-        );
+        const deduped = combined.filter((line, i, arr) => i === 0 || line !== arr[i - 1]);
         return deduped.slice(-2); // keep last 2 lines
       });
     };
@@ -44,7 +45,7 @@ function SubtitlePage() {
       const { offsetWidth: width, offsetHeight: height } = measureRef.current;
       window.electronAPI.reportSubtitleSize({ width, height });
     }
-  }, [lines, fontSize]); // ✅ recalc when fontSize changes
+  }, [lines, fontSize]);
 
   return (
     <div

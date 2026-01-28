@@ -57,12 +57,17 @@ function createWindow() {
     width,
     height,
     show: false,
+    autoHideMenuBar: app.isPackaged,
     webPreferences: {
       preload: path.join(__dirname, "preload.mjs"),
       contextIsolation: true,
       webSecurity: false
     },
   });
+
+  if (app.isPackaged) {
+    mainWindow.setMenuBarVisibility(false);
+  }
 
   mainWindow.once("ready-to-show", async () => {
     if (!mainWindow?.isDestroyed()) {

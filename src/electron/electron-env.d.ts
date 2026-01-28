@@ -1,6 +1,6 @@
 /// <reference types="vite-plugin-electron/electron-env" />
 
-import { IpcRendererEvent } from 'electron';
+import { IpcRendererEvent } from "electron";
 
 declare namespace NodeJS {
   interface ProcessEnv {
@@ -10,7 +10,16 @@ declare namespace NodeJS {
   }
 }
 
-export {}; // Make this a module
+export { }; // Make this a module
+
+// Audio device object with actual backend index
+export interface AudioDevice {
+  index: number;       // Actual backend device index
+  name: string;        // Display name
+  channels: number;
+  sample_rate: number;
+  is_default: boolean;
+}
 
 declare global {
   // Extend the Electron API with our custom methods
@@ -28,18 +37,42 @@ declare global {
     /** Invoke/await pattern */
     invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
 
-    /* high-level helpers */
+    /* Window controls */
     openAuxWindows: () => void;
-    closeAuxWindows: () => void;
+    closeAuxWindows: () => Promise<boolean>;
+    openWindow: (windowType: "subtitle" | "sign") => Promise<boolean>;
+
+    /* Theme */
     updateTheme: (darkMode: boolean) => void;
     onUpdateTheme: (callback: (darkMode: boolean) => void) => void;
 
-    /* tiny utility that shows the effective build mode */
+    /* Audio tool */
+    launchAudioTool: () => Promise<boolean>;
+    stopAudioTool: () => Promise<boolean>;
+    onTranscriptionOutput: (callback: (text: string) => void) => void;
+
+    /* Audio devices */
+    getAudioDevices: () => void;
+    selectAudioDevice: (index: number) => Promise<boolean>;
+    onAudioDeviceList: (callback: (devices: AudioDevice[]) => void) => () => void;
+    offAudioDeviceList: (callback: (devices: AudioDevice[]) => void) => void;
+
+    /* Sign window controls */
+    toggleSignWindow: (show: boolean) => Promise<boolean>;
+    toggleSubtitleWindow: (show: boolean) => Promise<boolean>;
+    reportSubtitleSize: (size: { width: number; height: number }) => void;
+
+    /* Resource paths */
+    getResourcesPath: () => string;
+    resolveSLPath: (word: string) => string;
+    getSignVideoPath: (word: string) => Promise<string>;
+
+    /* Environment */
     env: { NODE_ENV: string | undefined };
   }
 
   // Used in Renderer process, expose in `preload.ts`
   interface Window {
-    electronAPI: ElectronAPI;
+    electronAPI?: ElectronAPI;
   }
 }
