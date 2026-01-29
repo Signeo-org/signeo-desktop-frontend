@@ -24,8 +24,10 @@ function SignPage() {
     window.electronAPI.onTranscriptionOutput(async (text: string) => {
       if (/^\s*(\[[^\]]*\]|\([^\)]*\))\s*$/i.test(text.trim())) return;
 
-      const cleanedText = text.replace(/\[.*?\]/g, "").toLowerCase();
-      const words = cleanedText.replace(/[^\w\s]/g, "").split(/\s+/).filter(Boolean);
+      // Clean: remove brackets, lowercase, then remove all punctuation for consistent comparison
+      const rawCleaned = text.replace(/\[.*?\]/g, "").toLowerCase();
+      const cleanedText = rawCleaned.replace(/[^\w\s]/g, "").trim();
+      const words = cleanedText.split(/\s+/).filter(Boolean);
       if (!words.length) return;
 
       let newWords: string[];
@@ -70,9 +72,37 @@ function SignPage() {
     el.src = path;
     el.load();
 
-    await new Promise<void>((resolve) => {
-      const onCan = () => { el.removeEventListener("canplay", onCan); resolve(); };
+    await new Promise<void>((resolve, reject) => {
+      let resolved = false;
+      const cleanup = () => {
+        if (resolved) return;
+        resolved = true;
+        el.removeEventListener("canplay", onCan);
+        el.removeEventListener("error", onError);
+      };
+
+      const onCan = () => { cleanup(); resolve(); };
+      const onError = () => { cleanup(); reject(new Error(`Failed to load video: ${word}`)); };
+
+      // Check if already ready (can happen with cached files)
+      if (el.readyState >= 3) {
+        cleanup();
+        resolve();
+        return;
+      }
+
       el.addEventListener("canplay", onCan);
+      el.addEventListener("error", onError);
+
+      // Timeout fallback - don't wait forever
+      setTimeout(() => {
+        if (!resolved) {
+          cleanup();
+          // If we have some data, proceed anyway
+          if (el.readyState >= 2) resolve();
+          else reject(new Error(`Timeout loading video: ${word}`));
+        }
+      }, 5000);
     });
 
     preloadedRef.current.push({ word, path, element: el });
@@ -112,13 +142,21 @@ function SignPage() {
 
           await new Promise<void>((resolve) => {
             let resolved = false;
-            const clean = () => { if (!resolved) { resolved = true; resolve(); } };
+            const clean = () => {
+              if (!resolved) {
+                resolved = true;
+                // Remove event listeners to prevent accumulation
+                video.removeEventListener("ended", onEnded);
+                video.removeEventListener("error", onError);
+                resolve();
+              }
+            };
 
             const onEnded = () => { clean(); setCurrentWord(""); };
             const onError = (e?: any) => { console.error("Video error", word, e); clean(); setCurrentWord(""); };
 
-            video.addEventListener("ended", onEnded);
-            video.addEventListener("error", onError);
+            video.addEventListener("ended", onEnded, { once: true });
+            video.addEventListener("error", onError, { once: true });
 
             video.src = element.src;
             video.playbackRate = 2;
