@@ -76,7 +76,7 @@ const api: ElectronAPI = {
     if (process.env.NODE_ENV === "development") {
       return `../../resources/SL/${word}/shortest.mp4`;
     } else {
-      return `${process.resourcesPath}/resources/SL/${word}/shortest.mp4`;
+      return `${process.resourcesPath}/SL/${word}/shortest.mp4`;
     }
   },
 
@@ -142,7 +142,7 @@ const api: ElectronAPI = {
       callback(devices);
     };
     ipcRenderer.on("device-list", wrappedCallback);
-    
+
     // Return a function to remove this specific listener
     return () => {
       const index = deviceListCallbacks.indexOf(callback);
@@ -167,11 +167,11 @@ const api: ElectronAPI = {
 
   selectAudioDevice: (index) =>
     ipcRenderer.invoke("select-audio-device", index),
-    
-  toggleSignWindow: (show) => 
+
+  toggleSignWindow: (show) =>
     ipcRenderer.invoke("toggle-sign-window", show),
-    
-  toggleSubtitleWindow: (show) => 
+
+  toggleSubtitleWindow: (show) =>
     ipcRenderer.invoke("toggle-subtitle-window", show),
 
   env: { NODE_ENV: process.env.NODE_ENV },

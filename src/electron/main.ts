@@ -295,24 +295,38 @@ ipcMain.handle("launch-audio-tool", async (event) => {
   isLaunching = true;
   isToolRunning = true;
 
-  // Production: electron-builder bundles to resources/
+  // Production: electron-builder bundles to resources/backend/{DynamicFolder}/signeo-core.exe
   // Development: read directly from backend/build
-  const audioToolPathExe = app.isPackaged
-    ? path.join(process.resourcesPath, "backend/signeo-core.exe")
-    : path.join(__dirname, "../../../backend/build/signeo-core.exe");
+  let selectedToolPath: string = "";
 
-  const audioToolPath = app.isPackaged
-    ? path.join(process.resourcesPath, "resources/signeo-core")
-    : path.join(__dirname, "../../../backend/build/signeo-core");
-
-  let selectedToolPath: string;
-  if (process.platform === "win32" && fs.existsSync(audioToolPathExe)) {
-    selectedToolPath = audioToolPathExe;
-  } else if (fs.existsSync(audioToolPath)) {
-    selectedToolPath = audioToolPath;
+  if (app.isPackaged) {
+    const backendRoot = path.join(process.resourcesPath, "backend");
+    try {
+      // Find the first subdirectory in resources/backend (e.g., Signeo-Backend-Win64-GPU)
+      const entries = fs.readdirSync(backendRoot, { withFileTypes: true });
+      const dir = entries.find(e => e.isDirectory());
+      if (dir) {
+        selectedToolPath = path.join(backendRoot, dir.name, "signeo-core.exe");
+      }
+    } catch (e) {
+      console.error("[0] [ERROR]: Failed to locate backend executable in resources:", e);
+    }
   } else {
-    selectedToolPath = audioToolPathExe;
-    console.warn("⚠️ No native binary found at:", audioToolPathExe);
+    selectedToolPath = path.join(__dirname, "../../../backend/build/signeo-core.exe");
+  }
+
+  if (!selectedToolPath || !fs.existsSync(selectedToolPath)) {
+    // Fallback or explicit check
+    const legacyPath = app.isPackaged
+      ? path.join(process.resourcesPath, "backend/signeo-core.exe")
+      : path.join(__dirname, "../../../backend/build/signeo-core.exe");
+
+    if (fs.existsSync(legacyPath)) selectedToolPath = legacyPath;
+    else {
+      console.warn("⚠️ No native binary found at resolved path:", selectedToolPath || "null");
+      // Try one last common dev location just in case
+      selectedToolPath = legacyPath;
+    }
   }
 
   console.log("[0]: Launching tool at:", selectedToolPath);
@@ -476,9 +490,18 @@ function cleanupProcess() {
 ipcMain.handle("resolve-sign-video-path", (_event, word) => {
   let videoPath;
   if (app.isPackaged) {
-    videoPath = path.join(process.resourcesPath, "/resources/SL", word, "shortest.mp4");
+    videoPath = path.join(process.resourcesPath, "/SL", word, "shortest.mp4");
   } else {
-    videoPath = path.join(__dirname, "../../resources/SL", word, "shortest.mp4");
+    // Navigate up from: src/electron/main.ts -> src -> frontend -> desktop -> apps -> signeo-main -> shared
+    // __dirname is .../apps/desktop/frontend/dist/electron (in dev build)
+    // Wait, in dev mode with Vite, __dirname is .../dist/electron/main.js usually?
+    // Let's check the earlier __dirname definition: path.dirname(fileURLToPath(import.meta.url))
+    // In Dev: apps/desktop/frontend/dist/electron (compiled) OR src/electron (if ts-node? no, vite builds it)
+    // Actually, simply using the relative path from the project root is safest if we can find it.
+    // But let's stick to the relative path that was working before but corrected for shared.
+    // Previous working: ../../resources/SL (from main.ts?)
+    // shared is at: apps/desktop/frontend/../../../../shared/database/SL
+    videoPath = path.join(__dirname, "../../../../../shared/database/SL", word, "shortest.mp4");
   }
   // Return as file:// URL for renderer usage
   return `file://${videoPath.replace(/\\/g, '/')}`;

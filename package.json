@@ -44,11 +44,19 @@
         "to": "signeo-clear.png"
       },
       {
-        "from": "backend",
+        "from": "../backend/dist",
         "to": "backend",
         "filter": [
           "**/*",
-          "!.gitignore"
+          "!*.zip"
+        ]
+      },
+      {
+        "from": "../../../shared/database/SL",
+        "to": "SL",
+        "filter": [
+          "**/*",
+          "!*.zip"
         ]
       }
     ]
