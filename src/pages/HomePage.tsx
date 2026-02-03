@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useTheme } from "../App";
 import { useApp } from "../contexts/AppContext";
 import { useSettings } from "../contexts/SettingsContext";
-import { Settings, Square, Mic, Headphones, Languages, Moon, Sun } from "lucide-react";
+import { Settings, Square, Mic, Headphones, Languages, Moon, Sun, Database } from "lucide-react";
 import signeoLogo from "../assets/icon/signeo-clear.png";
 
 interface AudioDevice {
@@ -113,7 +113,7 @@ export default function HomePage() {
       {/* Glass container - entrance animation */}
       <div className="relative w-full max-w-lg md:max-w-xl lg:max-w-2xl animate-fade-in-up">
         <div
-          className={`backdrop-blur-2xl rounded-[2.5rem] p-6 sm:p-8 md:p-12 border transition-all duration-300
+          className={`relative backdrop-blur-2xl rounded-[2.5rem] p-6 sm:p-8 md:p-12 border transition-all duration-300
             ${darkMode
               ? "bg-slate-800/40 border-slate-700/50 shadow-[20px_20px_60px_#0a0f1a,-20px_-20px_60px_#1e293b]"
               : "bg-white/40 border-white/50 shadow-[20px_20px_60px_#bebebe,-20px_-20px_60px_#ffffff]"}
@@ -139,20 +139,34 @@ export default function HomePage() {
           </div>
 
           {/* Settings Link */}
-          <button
-            onClick={() => navigate("/settings")}
-            className="block w-full text-center text-sm text-slate-400 hover:text-[#FDB813] transition"
-          >
-            <Settings
-              className={`w-5 h-5 hover:rotate-90 transition-all duration-300 ${
-                darkMode ? "text-[#94a3b8] hover:text-[#FDB813]" : "text-[#5a6c7d] hover:text-[#FDB813]"
-              }`}
-            />
-          </button>
+          <div className="absolute top-8 left-8 flex gap-4 z-50">
+            <button
+              onClick={() => navigate("/admin")}
+              className={`p-3 rounded-2xl transition-all duration-200 group
+                ${darkMode
+                  ? "bg-[#1e293b] shadow-[6px_6px_12px_#0f172a,-6px_-6px_12px_#2d3e56] hover:shadow-[4px_4px_8px_#0f172a,-4px_-4px_8px_#2d3e56] text-slate-400 hover:text-[#FDB813]"
+                  : "bg-[#e0e5ec] shadow-[6px_6px_12px_#c5cad1,-6px_-6px_12px_#ffffff] hover:shadow-[4px_4px_8px_#c5cad1,-4px_-4px_8px_#ffffff] text-slate-600 hover:text-[#FDB813]"}
+              `}
+              title="Admin Dashboard"
+            >
+              <Database className="w-5 h-5 transition-colors" />
+            </button>
+            <button
+              onClick={() => navigate("/settings")}
+              className={`p-3 rounded-2xl transition-all duration-200 group
+                ${darkMode
+                  ? "bg-[#1e293b] shadow-[6px_6px_12px_#0f172a,-6px_-6px_12px_#2d3e56] hover:shadow-[4px_4px_8px_#0f172a,-4px_-4px_8px_#2d3e56] text-slate-400 hover:text-[#FDB813]"
+                  : "bg-[#e0e5ec] shadow-[6px_6px_12px_#c5cad1,-6px_-6px_12px_#ffffff] hover:shadow-[4px_4px_8px_#c5cad1,-4px_-4px_8px_#ffffff] text-slate-600 hover:text-[#FDB813]"}
+              `}
+              title="Settings"
+            >
+              <Settings className="w-5 h-5 hover:rotate-90 transition-all duration-300" />
+            </button>
+          </div>
 
           {/* Header */}
           <div className="text-center mb-6 md:mb-8 animate-fade-in-up [animation-delay:100ms] opacity-0 fill-mode-forwards">
-             <img
+            <img
               src={signeoLogo}
               alt="Signeo Logo"
               className="mx-auto w-28 sm:w-32 md:w-40 lg:w-48 h-auto hover:scale-105 transition-transform duration-300 drop-shadow-md"
@@ -164,9 +178,8 @@ export default function HomePage() {
             {/* Audio device */}
             <div>
               <label
-                className={`flex items-center gap-2 text-sm font-semibold mb-2 transition-colors duration-300 ${
-                  darkMode ? "text-slate-100" : "text-[#2c3e50]"
-                }`}
+                className={`flex items-center gap-2 text-sm font-semibold mb-2 transition-colors duration-300 ${darkMode ? "text-slate-100" : "text-[#2c3e50]"
+                  }`}
               >
                 <Headphones className="w-4 h-4 text-[#FDB813]" />
                 Audio Device
@@ -198,9 +211,8 @@ export default function HomePage() {
             {/* Language */}
             <div>
               <label
-                className={`flex items-center gap-2 text-sm font-semibold mb-2 transition-colors duration-300 ${
-                  darkMode ? "text-slate-100" : "text-[#2c3e50]"
-                }`}
+                className={`flex items-center gap-2 text-sm font-semibold mb-2 transition-colors duration-300 ${darkMode ? "text-slate-100" : "text-[#2c3e50]"
+                  }`}
               >
                 <Languages className="w-4 h-4 text-[#FDB813]" />
                 Language

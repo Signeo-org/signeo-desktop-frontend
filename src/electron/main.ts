@@ -385,18 +385,10 @@ ipcMain.handle("launch-audio-tool", async (event) => {
               break;
 
             case "partial":
-              BrowserWindow.getAllWindows().forEach((win) => {
-                if (!win.isDestroyed()) {
-                  win.webContents.send("transcription-output", msg.text);
-                }
-              });
-              break;
-
             case "final":
               BrowserWindow.getAllWindows().forEach((win) => {
                 if (!win.isDestroyed()) {
-                  // Send finals on same channel as partials for UI display
-                  win.webContents.send("transcription-output", msg.text);
+                  win.webContents.send("transcription-output", { text: msg.text, type: msg.type });
                 }
               });
               break;
@@ -505,4 +497,41 @@ ipcMain.handle("resolve-sign-video-path", (_event, word) => {
   }
   // Return as file:// URL for renderer usage
   return `file://${videoPath.replace(/\\/g, '/')}`;
+});
+
+// ========================= DATABASE STATS =========================
+// Caching for DB stats to prevent repeated FS reads and log spam
+let cachedDBStats: string[] | null = null;
+
+ipcMain.handle("get-database-stat", async () => {
+  if (cachedDBStats) {
+    return cachedDBStats;
+  }
+
+  try {
+    let slPath;
+    if (app.isPackaged) {
+      slPath = path.join(process.resourcesPath, "SL");
+    } else {
+      slPath = path.join(__dirname, "../../../../../shared/database/SL");
+    }
+
+    if (!fs.existsSync(slPath)) {
+      console.warn("[0] [WARN]: SL directory not found at:", slPath);
+      return [];
+    }
+
+    const entries = fs.readdirSync(slPath, { withFileTypes: true });
+    // Filter for directories only, as each directory represents a word
+    const words = entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+
+    console.log(`[0]: Found ${words.length} words in database.`);
+    cachedDBStats = words;
+    return words;
+  } catch (error) {
+    console.error("[0] [ERROR]: Failed to get database stats:", error);
+    return [];
+  }
 });

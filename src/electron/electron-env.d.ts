@@ -47,7 +47,7 @@ declare global {
     /* Audio tool */
     launchAudioTool: () => Promise<boolean>;
     stopAudioTool: () => Promise<boolean>;
-    onTranscriptionOutput: (callback: (text: string) => void) => void;
+    onTranscriptionOutput: (callback: (data: { text: string; type: "partial" | "final" }) => void) => void;
 
     /* Audio devices */
     getAudioDevices: () => void;
@@ -64,6 +64,7 @@ declare global {
     getResourcesPath: () => string;
     resolveSLPath: (word: string) => string;
     getSignVideoPath: (word: string) => Promise<string>;
+    getDatabaseStat: () => Promise<string[]>;
 
     /* Environment */
     env: { NODE_ENV: string | undefined };

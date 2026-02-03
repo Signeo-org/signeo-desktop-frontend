@@ -31,7 +31,7 @@ export interface ElectronAPI {
   onUpdateTheme: (callback: (darkMode: boolean) => void) => void;
   launchAudioTool: () => Promise<boolean>;
   stopAudioTool: () => Promise<boolean>;
-  onTranscriptionOutput: (callback: (text: string) => void) => void;
+  onTranscriptionOutput: (callback: (data: { text: string; type: "partial" | "final" }) => void) => void;
   getAudioDevices: () => void;
   selectAudioDevice: (index: number) => Promise<boolean>;
   onAudioDeviceList: (callback: (devices: AudioDevice[]) => void) => () => void;
@@ -42,25 +42,27 @@ export interface ElectronAPI {
   getResourcesPath: () => string;
   resolveSLPath: (word: string) => string;
   getSignVideoPath: (word: string) => Promise<string>;
+  getDatabaseStat: () => Promise<string[]>;
 
   /* tiny utility that shows the effective build mode */
   env: { NODE_ENV: string | undefined };
 }
 
-const transcriptionCallbacks: ((text: string) => void)[] = [];
-const transcriptionBacklog: string[] = [];
+const transcriptionCallbacks: ((data: { text: string; type: "partial" | "final" }) => void)[] = [];
+const transcriptionBacklog: { text: string; type: "partial" | "final" }[] = [];
 const deviceListCallbacks: ((devices: AudioDevice[]) => void)[] = [];
 
 // Handle streaming transcription
-ipcRenderer.on("transcription-output", (_event, text: string) => {
+ipcRenderer.on("transcription-output", (_event, data: { text: string; type: "partial" | "final" }) => {
   if (transcriptionCallbacks.length === 0) {
-    transcriptionBacklog.push(text);
+    transcriptionBacklog.push(data);
   } else {
-    transcriptionCallbacks.forEach((cb) => cb(text));
+    transcriptionCallbacks.forEach((cb) => cb(data));
   }
 });
 
 const api: ElectronAPI = {
+  // ... existing methods ...
   on: (ch, fn) => ipcRenderer.on(ch, fn),
   once: (ch, fn) => ipcRenderer.once(ch, fn),
   invoke: (ch, ...a) => ipcRenderer.invoke(ch, ...a),
@@ -173,6 +175,8 @@ const api: ElectronAPI = {
 
   toggleSubtitleWindow: (show) =>
     ipcRenderer.invoke("toggle-subtitle-window", show),
+
+  getDatabaseStat: () => ipcRenderer.invoke("get-database-stat"),
 
   env: { NODE_ENV: process.env.NODE_ENV },
 };

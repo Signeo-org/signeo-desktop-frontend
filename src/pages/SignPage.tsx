@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTheme } from "../App";
+import { shouldIgnoreWord } from "../utils/textUtils";
 
 interface WordEntry { word: string; path: string; }
 interface PreloadedEntry extends WordEntry { element: HTMLVideoElement; }
@@ -21,33 +22,72 @@ function SignPage() {
   useEffect(() => {
     if (!window.electronAPI?.onTranscriptionOutput) return;
 
-    window.electronAPI.onTranscriptionOutput(async (text: string) => {
+    window.electronAPI.onTranscriptionOutput(async (data: { text: string; type: "partial" | "final" }) => {
+      const text = data.text;
       if (/^\s*(\[[^\]]*\]|\([^\)]*\))\s*$/i.test(text.trim())) return;
 
-      // Clean: remove brackets, lowercase, then remove all punctuation for consistent comparison
-      const rawCleaned = text.replace(/\[.*?\]/g, "").toLowerCase();
-      const cleanedText = rawCleaned.replace(/[^\w\s]/g, "").trim();
-      const words = cleanedText.split(/\s+/).filter(Boolean);
-      if (!words.length) return;
+      // const { shouldIgnoreWord } = await import("../utils/textUtils"); // Removed dynamic import
 
-      let newWords: string[];
-      if (!cleanedText.startsWith(lastTranscriptRef.current)) {
-        newWords = words;
-        lastIndexRef.current = 0;
+      // Split by whitespace first to preserve original punctuation for display
+      const allWords = text.trim().split(/\s+/).filter(Boolean);
+
+      // Filter: Check if the CLEANED word should be ignored
+      // We map to an object first to keep both raw and clean versions
+      const wordsToPlay = await Promise.all(allWords.map(async (rawWord) => {
+        const { cleanWord, shouldIgnoreWord } = await import("../utils/textUtils");
+        const clean = cleanWord(rawWord);
+        if (!clean || shouldIgnoreWord(clean)) return null;
+
+        // Get path for the CLEANED word
+        const path = await window.electronAPI!.getSignVideoPath(clean);
+        return { word: rawWord, path }; // Keep rawWord for display!
+      }));
+
+      // Filter out nulls
+      const validEntries = wordsToPlay.filter((w): w is WordEntry => w !== null);
+
+      if (!validEntries.length) return;
+
+      // ... existing logic for newWords slice ...
+      // But wait, check logic for newWords slice based on *cleaned* text? 
+      // Actually, relying on `lastTranscriptRef` being the full cleaned text is tricky if we want to support partials correctly.
+      // The current logic:
+      // const cleanedText = rawCleaned.replace(/[^\w\s]/g, "").trim();
+      // if (!cleanedText.startsWith(lastTranscriptRef.current)) ...
+
+      // Let's stick to the user's immediate request: "Hello?" -> "hello" for path, "Hello?" for display.
+      // We need to adapt the append logic.
+
+      // Simpler approach: Just process the *new* words.
+      // But `onTranscriptionOutput` provides the *full* current segment text usually?
+      // Wait, `onTranscriptionOutput` sends "partial" updates which are the full text of the current sentence *so far*.
+      // So we do need to diff.
+
+      // Let's reconstruct the cleaned text for diffing purposes
+      const normalizeForDiff = (str: string) => str.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
+      const currentFullClean = normalizeForDiff(text);
+
+      let newEntries: WordEntry[] = [];
+
+      // If the current text starts with the last text, we just append the new words
+      // Otherwise (new sentence or correction), we reset
+      if (currentFullClean.startsWith(lastTranscriptRef.current) && lastTranscriptRef.current.length > 0) {
+        // We need to skip the first N valid words we already processed
+        // This is getting complicated with the raw/clean mapping.
+        // A simpler heuristic:
+        // `lastIndexRef` stores how many words we already processed.
+        newEntries = validEntries.slice(lastIndexRef.current);
       } else {
-        newWords = words.slice(lastIndexRef.current);
+        // Reset or new sentence
+        newEntries = validEntries;
+        lastIndexRef.current = 0;
       }
 
-      lastTranscriptRef.current = cleanedText;
-      lastIndexRef.current = words.length;
+      lastTranscriptRef.current = currentFullClean;
+      lastIndexRef.current = validEntries.length;
 
-      const entries = await Promise.all(newWords.map(async (word) => ({
-        word,
-        path: await window.electronAPI!.getSignVideoPath(word)
-      })));
-
-      wordQueueRef.current.push(...entries);
-      startPlaybackLoop(); // safely call multiple times
+      wordQueueRef.current.push(...newEntries);
+      startPlaybackLoop();
     });
   }, []);
 

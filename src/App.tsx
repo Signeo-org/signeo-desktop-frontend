@@ -8,10 +8,11 @@ import HomePage from "./pages/HomePage";
 import SettingsPage from "./pages/SettingsPage";
 import SignPage from "./pages/SignPage";
 import SubtitlePage from "./pages/SubtitlePage";
+import AdminPage from "./pages/AdminPage";
 
 const ThemeContext = createContext({
   darkMode: false,
-  setDarkMode: (value: boolean) => {},
+  setDarkMode: (value: boolean) => { },
 });
 
 export const useTheme = () => useContext(ThemeContext);
@@ -84,6 +85,7 @@ function App() {
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/sign" element={<SignPage />} />
                   <Route path="/subtitle" element={<SubtitlePage />} />
+                  <Route path="/admin" element={<AdminPage />} />
                 </Routes>
               </HashRouter>
             </div>
