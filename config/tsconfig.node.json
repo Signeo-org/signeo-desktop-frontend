@@ -26,7 +26,6 @@
 
     /* Misc */
     "moduleDetection": "force",
-    "noEmit": true,
     "skipLibCheck": true // drop if you want full checking
   },
   "include": ["vite.config.ts"]

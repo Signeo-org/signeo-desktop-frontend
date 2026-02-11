@@ -499,6 +499,18 @@ ipcMain.handle("resolve-sign-video-path", (_event, word) => {
   return `file://${videoPath.replace(/\\/g, '/')}`;
 });
 
+ipcMain.handle("resolve-word-picture-path", (_event, word) => {
+  let imgPath;
+  if (app.isPackaged) {
+    imgPath = path.join(process.resourcesPath, "/words_picture", `${word}.png`);
+  } else {
+    // Adjust relative path to your dev folder
+    imgPath = path.join(__dirname, "../../../../../shared/database/words_picture", `${word}.png`);
+  }
+  return `file://${imgPath.replace(/\\/g, "/")}`;
+});
+
+
 // ========================= DATABASE STATS =========================
 // Caching for DB stats to prevent repeated FS reads and log spam
 let cachedDBStats: string[] | null = null;

@@ -3,11 +3,13 @@ import { useTheme } from "../App";
 import { shouldIgnoreWord } from "../utils/textUtils";
 
 interface WordEntry { word: string; path: string; }
-interface PreloadedEntry extends WordEntry { element: HTMLVideoElement; }
+interface PreloadedEntry extends WordEntry { element: HTMLVideoElement | null;  }
+
 
 function SignPage() {
   const { darkMode } = useTheme();
   const [currentWord, setCurrentWord] = useState("");
+  const [fallbackImage, setFallbackImage] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const wordQueueRef = useRef<WordEntry[]>([]);
@@ -42,6 +44,7 @@ function SignPage() {
         const path = await window.electronAPI!.getSignVideoPath(clean);
         return { word: rawWord, path }; // Keep rawWord for display!
       }));
+      
 
       // Filter out nulls
       const validEntries = wordsToPlay.filter((w): w is WordEntry => w !== null);
@@ -102,7 +105,12 @@ function SignPage() {
     if (!wordQueueRef.current.length) return;
 
     const { word, path } = wordQueueRef.current[0];
-    if (!await checkVideoExists(path)) {
+    const exists = await checkVideoExists(path);
+
+    if (!exists) {
+      // Fallback: get image path via new IPC function
+      const imgPath = await window.electronAPI.getWordPicturePath(word);
+      preloadedRef.current.push({ word, path: imgPath, element: null }); // Use null, not undefined
       wordQueueRef.current.shift();
       return;
     }
@@ -120,25 +128,14 @@ function SignPage() {
         el.removeEventListener("canplay", onCan);
         el.removeEventListener("error", onError);
       };
-
       const onCan = () => { cleanup(); resolve(); };
       const onError = () => { cleanup(); reject(new Error(`Failed to load video: ${word}`)); };
-
-      // Check if already ready (can happen with cached files)
-      if (el.readyState >= 3) {
-        cleanup();
-        resolve();
-        return;
-      }
-
+      if (el.readyState >= 3) { cleanup(); resolve(); return; }
       el.addEventListener("canplay", onCan);
       el.addEventListener("error", onError);
-
-      // Timeout fallback - don't wait forever
       setTimeout(() => {
         if (!resolved) {
           cleanup();
-          // If we have some data, proceed anyway
           if (el.readyState >= 2) resolve();
           else reject(new Error(`Timeout loading video: ${word}`));
         }
@@ -149,6 +146,7 @@ function SignPage() {
     wordQueueRef.current.shift();
   };
 
+
   const maintainPreloadBuffer = async () => {
     while (preloadedRef.current.length < 10 && wordQueueRef.current.length) {
       await loadNextVideo().catch(e => {
@@ -158,63 +156,70 @@ function SignPage() {
     }
   };
 
-  const startPlaybackLoop = async () => {
-    if (isPlayingRef.current) return;
-    isPlayingRef.current = true;
+ const startPlaybackLoop = async () => {
+  if (isPlayingRef.current) return;
+  isPlayingRef.current = true;
 
-    try {
-      while (true) {
-        try {
-          if (!preloadedRef.current.length) await maintainPreloadBuffer();
+  try {
+    while (true) {
+      if (!preloadedRef.current.length) await maintainPreloadBuffer();
 
-          const entry = preloadedRef.current.shift();
-          if (!entry) { await new Promise(r => setTimeout(r, 100)); continue; }
+      const entry = preloadedRef.current.shift();
+      if (!entry) { await new Promise(r => setTimeout(r, 100)); continue; }
 
-          const { word, element } = entry;
-          if (word === lastShownWordRef.current) repeatCountRef.current++;
-          else repeatCountRef.current = 1;
-          lastShownWordRef.current = word;
+      const { word, element, path } = entry;
+      if (word === lastShownWordRef.current) repeatCountRef.current++;
+      else repeatCountRef.current = 1;
+      lastShownWordRef.current = word;
+      setCurrentWord(repeatCountRef.current > 1 ? `${word} (${repeatCountRef.current})` : word);
 
-          setCurrentWord(repeatCountRef.current > 1 ? `${word} (${repeatCountRef.current})` : word);
+      const video = videoRef.current;
+      if (!video) continue;
 
-          const video = videoRef.current;
-          if (!video) continue;
+      if (element) {
+        // Video playback
+        await new Promise<void>((resolve) => {
+          let resolved = false;
+          const clean = () => { if (!resolved) { resolved = true; video.removeEventListener("ended", onEnded); video.removeEventListener("error", onError); resolve(); } };
+          const onEnded = () => { clean(); setCurrentWord(""); };
+          const onError = () => { console.error("Video error", word); clean(); setCurrentWord(""); };
 
-          await new Promise<void>((resolve) => {
-            let resolved = false;
-            const clean = () => {
-              if (!resolved) {
-                resolved = true;
-                // Remove event listeners to prevent accumulation
-                video.removeEventListener("ended", onEnded);
-                video.removeEventListener("error", onError);
-                resolve();
-              }
-            };
+          video.addEventListener("ended", onEnded, { once: true });
+          video.addEventListener("error", onError, { once: true });
 
-            const onEnded = () => { clean(); setCurrentWord(""); };
-            const onError = (e?: any) => { console.error("Video error", word, e); clean(); setCurrentWord(""); };
+          video.src = element.src;
+          video.playbackRate = 2;
+          video.play().catch(() => clean());
+        });
+      } else {
+        // Image fallback: show 1 second
+        video.src = ""; // Hide video
+        const img = document.createElement("img");
+        img.src = path; // fallback image path
+        img.style.maxHeight = "80vh";
+        img.style.maxWidth = "90vw";
+        img.style.position = "absolute";
+        img.style.top = "50%";
+        img.style.left = "50%";
+        img.style.transform = "translate(-50%, -50%)";
+        if (!element) {
+          video.src = "";
+          setFallbackImage(path); // Show image in React
 
-            video.addEventListener("ended", onEnded, { once: true });
-            video.addEventListener("error", onError, { once: true });
+          await new Promise(r => setTimeout(r, 500)); // Keep it visible for 1s
 
-            video.src = element.src;
-            video.playbackRate = 2;
-            video.play().catch(e => { console.warn("Play failed", word, e); clean(); });
-          });
-
-        } catch (loopError) {
-          console.error("Playback loop error:", loopError);
-          await new Promise(r => setTimeout(r, 200));
+          setFallbackImage(null);
+          setCurrentWord("");
         }
       }
-    } finally {
-      isPlayingRef.current = false;
     }
-  };
+  } finally {
+    isPlayingRef.current = false;
+  }
+};
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen bg-black text-white">
+    <div className="flex flex-col items-center justify-center h-screen bg-black text-white relative">
       <video
         ref={videoRef}
         autoPlay
@@ -222,11 +227,25 @@ function SignPage() {
         style={{
           maxHeight: "80vh",
           maxWidth: "90vw",
-          visibility: currentWord ? "visible" : "hidden",
+          visibility: currentWord && !fallbackImage ? "visible" : "hidden",
         }}
       />
+      {fallbackImage && (
+        <img
+          src={fallbackImage}
+          alt="Fallback"
+          style={{
+            maxHeight: "80vh",
+            maxWidth: "90vw",
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+          }}
+        />
+      )}
       {currentWord ? (
-        <h2 className="mt-4 text-2xl font-bold">Showing: {currentWord}</h2>
+        <h2 className="mt-4 text-2xl font-bold z-10">Showing: {currentWord}</h2>
       ) : (
         <h1 className="mt-4">Waiting for signs...</h1>
       )}

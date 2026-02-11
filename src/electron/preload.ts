@@ -42,6 +42,7 @@ export interface ElectronAPI {
   getResourcesPath: () => string;
   resolveSLPath: (word: string) => string;
   getSignVideoPath: (word: string) => Promise<string>;
+  getWordPicturePath: (word: string) => Promise<string>;
   getDatabaseStat: () => Promise<string[]>;
 
   /* tiny utility that shows the effective build mode */
@@ -85,6 +86,9 @@ const api: ElectronAPI = {
   // New: get the correct absolute file:// path from main process
   getSignVideoPath: (word: string) =>
     ipcRenderer.invoke("resolve-sign-video-path", word).then((result) => result as string),
+
+  getWordPicturePath: (word: string) =>
+  ipcRenderer.invoke("resolve-word-picture-path", word).then((result) => result as string),
 
   openAuxWindows: () => {
     ipcRenderer.send("toggle-sign-window", true);

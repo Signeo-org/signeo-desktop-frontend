@@ -16,7 +16,6 @@
     "allowImportingTsExtensions": true,
     // "verbatimModuleSyntax": true,
     "moduleDetection": "force",
-    "noEmit": true,
 
     /* JS support */
     "allowJs": true,
@@ -31,7 +30,9 @@
     "erasableSyntaxOnly": true,
 
     /* Faster CI – drop if you want full lib checking */
-    "skipLibCheck": true
+    "skipLibCheck": true,
+
+    "composite": true
   },
   "include": ["src", "tailwind.config.ts"]
 }

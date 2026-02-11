@@ -1,12 +1,18 @@
 # signeo-desktop-frontend
-Frontend codebase for the desktop version of Signeo, providing the user interface for live subtitling functionality.
 
+Frontend codebase for the desktop version of Signeo, providing the user interface for live subtitling functionality.
 
 # SigneoAppFront
 
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+
+## To run for getting the db
+
+cd scripts
+python generate_words_txt.py
+python generate_text_pic.py
 
 ## Available Scripts
 

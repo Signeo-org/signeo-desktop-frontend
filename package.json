@@ -58,7 +58,16 @@
           "**/*",
           "!*.zip"
         ]
+      },
+      {
+        "from": "../../../shared/database/words_picture",
+        "to": "words_picture",
+        "filter": [
+          "**/*",
+          "!*.zip"
+        ]
       }
+      
     ]
   },
   "dependencies": {
