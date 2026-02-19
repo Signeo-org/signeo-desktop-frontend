@@ -1,51 +1,76 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
 
-// Audio device object with actual backend index
 export interface AudioDevice {
-  index: number;       // Actual backend device index
-  name: string;        // Display name
+  index: number;
+  name: string;
   channels: number;
   sample_rate: number;
   is_default: boolean;
 }
 
+export type SignMediaItem = {
+  label: string;
+  originalName: string;
+  ext: ".mp4" | ".gif";
+  addedAtUtc: string;
+};
+
 export interface ElectronAPI {
-  /** Subscribe for as-many-times-as-needed events */
-  on: (
-    channel: string,
-    listener: (evt: IpcRendererEvent, ...args: unknown[]) => void
-  ) => void;
-  /** Subscribe for one-shot events */
-  once: (
-    channel: string,
-    listener: (evt: IpcRendererEvent, ...args: unknown[]) => void
-  ) => void;
-  /** Invoke/await pattern */
+  on: (channel: string, listener: (evt: IpcRendererEvent, ...args: unknown[]) => void) => void;
+  once: (channel: string, listener: (evt: IpcRendererEvent, ...args: unknown[]) => void) => void;
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
 
-  /* high-level helpers */
-  openAuxWindows: () => void;
+  openAuxWindows: () => Promise<void>;
   closeAuxWindows: () => Promise<boolean>;
   openWindow: (windowType: "subtitle" | "sign") => Promise<boolean>;
+
   updateTheme: (darkMode: boolean) => void;
   onUpdateTheme: (callback: (darkMode: boolean) => void) => void;
+
   launchAudioTool: () => Promise<boolean>;
   stopAudioTool: () => Promise<boolean>;
-  onTranscriptionOutput: (callback: (data: { text: string; type: "partial" | "final" }) => void) => void;
+  onTranscriptionOutput: (
+    callback: (data: { text: string; type: "partial" | "final" }) => void
+  ) => void;
+
   getAudioDevices: () => void;
   selectAudioDevice: (index: number) => Promise<boolean>;
   onAudioDeviceList: (callback: (devices: AudioDevice[]) => void) => () => void;
   offAudioDeviceList: (callback: (devices: AudioDevice[]) => void) => void;
+
   toggleSignWindow: (show: boolean) => Promise<boolean>;
   toggleSubtitleWindow: (show: boolean) => Promise<boolean>;
   reportSubtitleSize: (size: { width: number; height: number }) => void;
+
   getResourcesPath: () => string;
   resolveSLPath: (word: string) => string;
   getSignVideoPath: (word: string) => Promise<string>;
   getWordPicturePath: (word: string) => Promise<string>;
   getDatabaseStat: () => Promise<string[]>;
 
-  /* tiny utility that shows the effective build mode */
+  importSignMediaPick: () => Promise<
+    | { ok: true; src: string; ext: ".mp4" | ".gif" }
+    | { ok: false; canceled?: true; error?: string }
+  >;
+
+  saveSignMedia: (
+    src: string,
+    label: string
+  ) => Promise<
+    | { ok: true; label: string; dest: string; replaced: boolean }
+    | { ok: false; error: string }
+  >;
+
+  listSignMedia: () => Promise<
+    | { ok: true; items: SignMediaItem[] }
+    | { ok: false; error: string }
+  >;
+
+  removeSignMedia: (label: string) => Promise<
+    | { ok: true }
+    | { ok: false; error: string }
+  >;
+
   env: { NODE_ENV: string | undefined };
 }
 
@@ -54,16 +79,18 @@ const transcriptionBacklog: { text: string; type: "partial" | "final" }[] = [];
 const deviceListCallbacks: ((devices: AudioDevice[]) => void)[] = [];
 
 // Handle streaming transcription
-ipcRenderer.on("transcription-output", (_event, data: { text: string; type: "partial" | "final" }) => {
-  if (transcriptionCallbacks.length === 0) {
-    transcriptionBacklog.push(data);
-  } else {
-    transcriptionCallbacks.forEach((cb) => cb(data));
+ipcRenderer.on(
+  "transcription-output",
+  (_event, data: { text: string; type: "partial" | "final" }) => {
+    if (transcriptionCallbacks.length === 0) {
+      transcriptionBacklog.push(data);
+    } else {
+      transcriptionCallbacks.forEach((cb) => cb(data));
+    }
   }
-});
+);
 
 const api: ElectronAPI = {
-  // ... existing methods ...
   on: (ch, fn) => ipcRenderer.on(ch, fn),
   once: (ch, fn) => ipcRenderer.once(ch, fn),
   invoke: (ch, ...a) => ipcRenderer.invoke(ch, ...a),
@@ -72,9 +99,6 @@ const api: ElectronAPI = {
 
   getResourcesPath: () => process.resourcesPath,
 
-  // find the path to a sign language video for a given word
-  // use one path for development, another for production
-  // Deprecated: use getSignVideoPath instead for correct absolute path
   resolveSLPath: (word: string) => {
     if (process.env.NODE_ENV === "development") {
       return `../../resources/SL/${word}/shortest.mp4`;
@@ -83,17 +107,18 @@ const api: ElectronAPI = {
     }
   },
 
-  // New: get the correct absolute file:// path from main process
   getSignVideoPath: (word: string) =>
-    ipcRenderer.invoke("resolve-sign-video-path", word).then((result) => result as string),
+    ipcRenderer.invoke("resolve-sign-video-path", word).then((r) => r as string),
 
   getWordPicturePath: (word: string) =>
-  ipcRenderer.invoke("resolve-word-picture-path", word).then((result) => result as string),
+    ipcRenderer.invoke("resolve-word-picture-path", word).then((r) => r as string),
 
-  openAuxWindows: () => {
-    ipcRenderer.send("toggle-sign-window", true);
-    ipcRenderer.send("toggle-subtitle-window", true);
+  // ✅ FIX: use invoke, not send (because main uses ipcMain.handle)
+  openAuxWindows: async () => {
+    await ipcRenderer.invoke("toggle-sign-window", true);
+    await ipcRenderer.invoke("toggle-subtitle-window", true);
   },
+
   closeAuxWindows: () => ipcRenderer.invoke("closeAuxWindows"),
   openWindow: (windowType) => ipcRenderer.invoke("openWindow", windowType),
 
@@ -102,85 +127,77 @@ const api: ElectronAPI = {
   },
 
   onUpdateTheme: (callback) => {
-    ipcRenderer.on("theme-updated", (_, darkMode: boolean) => {
-      callback(darkMode);
-    });
+    ipcRenderer.on("theme-updated", (_evt, darkMode: boolean) => callback(darkMode));
   },
 
-  launchAudioTool: () => {
-    return ipcRenderer
+  launchAudioTool: () =>
+    ipcRenderer
       .invoke("launch-audio-tool")
       .then(() => true)
       .catch((err) => {
         console.error("[0] [ERROR]: Failed to launch signeo-core:", err);
         return false;
-      });
-  },
+      }),
 
-  stopAudioTool: () => {
-    return ipcRenderer
+  stopAudioTool: () =>
+    ipcRenderer
       .invoke("stop-audio-tool")
       .then(() => true)
       .catch((err) => {
         console.error("[0] [ERROR]: Failed to stop signeo-core:", err);
         return false;
-      });
-  },
+      }),
 
   onTranscriptionOutput: (callback) => {
-    console.log("[0]: onTranscriptionOutput subscribed");
-
     transcriptionCallbacks.push(callback);
     while (transcriptionBacklog.length > 0) {
-      const message = transcriptionBacklog.shift();
-      if (message) callback(message);
+      const msg = transcriptionBacklog.shift();
+      if (msg) callback(msg);
     }
   },
 
   getAudioDevices: () => {
-    ipcRenderer.send("request-device-list"); // this re-triggers list
+    ipcRenderer.send("request-device-list");
   },
 
   onAudioDeviceList: (callback) => {
     deviceListCallbacks.push(callback);
-    // Create a properly typed wrapper function that matches ipcRenderer's expected signature
+
     const wrappedCallback = (_event: IpcRendererEvent, devices: AudioDevice[]) => {
       callback(devices);
     };
+
     ipcRenderer.on("device-list", wrappedCallback);
 
-    // Return a function to remove this specific listener
     return () => {
       const index = deviceListCallbacks.indexOf(callback);
-      if (index !== -1) {
-        deviceListCallbacks.splice(index, 1);
-      }
+      if (index !== -1) deviceListCallbacks.splice(index, 1);
       ipcRenderer.off("device-list", wrappedCallback);
     };
   },
 
   offAudioDeviceList: (callback) => {
     const index = deviceListCallbacks.indexOf(callback);
-    if (index !== -1) {
-      deviceListCallbacks.splice(index, 1);
-    }
-    // Create a properly typed wrapper function that matches ipcRenderer's expected signature
+    if (index !== -1) deviceListCallbacks.splice(index, 1);
+
     const wrappedCallback = (_event: IpcRendererEvent, devices: AudioDevice[]) => {
       callback(devices);
     };
     ipcRenderer.off("device-list", wrappedCallback);
   },
 
-  selectAudioDevice: (index) =>
-    ipcRenderer.invoke("select-audio-device", index),
+  selectAudioDevice: (index) => ipcRenderer.invoke("select-audio-device", index),
 
-  toggleSignWindow: (show) =>
-    ipcRenderer.invoke("toggle-sign-window", show),
-
-  toggleSubtitleWindow: (show) =>
-    ipcRenderer.invoke("toggle-subtitle-window", show),
+  toggleSignWindow: (show) => ipcRenderer.invoke("toggle-sign-window", show),
+  toggleSubtitleWindow: (show) => ipcRenderer.invoke("toggle-subtitle-window", show),
 
   getDatabaseStat: () => ipcRenderer.invoke("get-database-stat"),
+
+  // Custom signs
+  importSignMediaPick: () => ipcRenderer.invoke("import-sign-media"),
+  saveSignMedia: (src, label) => ipcRenderer.invoke("save-sign-media", { src, label }),
+  listSignMedia: () => ipcRenderer.invoke("list-sign-media"),
+  removeSignMedia: (label) => ipcRenderer.invoke("remove-sign-media", { label }),
 
   env: { NODE_ENV: process.env.NODE_ENV },
 };

@@ -44,7 +44,7 @@
         "to": "signeo-clear.png"
       },
       {
-        "from": "../backend/dist",
+        "from": "../backend/build",
         "to": "backend",
         "filter": [
           "**/*",
@@ -58,16 +58,7 @@
           "**/*",
           "!*.zip"
         ]
-      },
-      {
-        "from": "../../../shared/database/words_picture",
-        "to": "words_picture",
-        "filter": [
-          "**/*",
-          "!*.zip"
-        ]
       }
-      
     ]
   },
   "dependencies": {
